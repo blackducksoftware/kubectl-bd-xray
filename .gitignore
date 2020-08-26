@@ -25,3 +25,6 @@
 **/.idea/
 
 .DS_Store
+
+# detect
+**detect.sh

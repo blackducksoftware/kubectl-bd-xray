@@ -26,7 +26,7 @@ func setupRootCommand() *cobra.Command {
 	flags := &flagpole{}
 	var rootCmd = &cobra.Command{
 		Use:   "bd-xray",
-		Short: "bd-xray",
+		Short: "Run a blackduck scan on an image",
 		Long:  `bd-xray`,
 		Args:  cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,6 +39,7 @@ func setupRootCommand() *cobra.Command {
 	flags.genericCliConfigFlags = genericclioptions.NewConfigFlags(false)
 	flags.genericCliConfigFlags.AddFlags(rootCmd.Flags())
 
+	rootCmd.AddCommand(SetupImageScanCommand())
 	return rootCmd
 }
 
