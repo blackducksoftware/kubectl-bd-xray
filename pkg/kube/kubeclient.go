@@ -65,7 +65,7 @@ func (kc *Client) GetNamespace(namespace string) (*v1.Namespace, error) {
 	return ns, errors.Wrapf(err, "unable to get namespace '%s'", namespace)
 }
 
-func (kc *Client) ListPods(ctx context.Context, namespace string, label string, value string) (*v1.PodList, error) {
+func (kc *Client) ListPods(namespace string, label string, value string) (*v1.PodList, error) {
 	selector := fmt.Sprintf("%s=%s", label, value)
 	pods, err := kc.Clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{
 		LabelSelector: selector,
@@ -73,20 +73,28 @@ func (kc *Client) ListPods(ctx context.Context, namespace string, label string, 
 	return pods, errors.Wrapf(err, "unable to list pods in ns '%s' with label selector '%s", namespace, selector)
 }
 
-func (kc *Client) ListDeployments(ctx context.Context, namespace string) (*appsv1.DeploymentList, error) {
+func (kc *Client) ListDeployments(namespace string) (*appsv1.DeploymentList, error) {
 	log.Infof("listing deployments in namespace: '%s'; equivalent to 'kubectl get deployments -n %s'", namespace, namespace)
 	deploymentList, err := kc.Clientset.AppsV1().Deployments(namespace).List(metav1.ListOptions{})
 	return deploymentList, errors.Wrapf(err, "could not get a list of deployments in namespace: '%s'", namespace)
 }
 
-func (kc *Client) ListStatefulSets(ctx context.Context, namespace string) (*appsv1.StatefulSetList, error) {
+func (kc *Client) ListStatefulSets(namespace string) (*appsv1.StatefulSetList, error) {
 	log.Infof("listing statefulsets in namespace: '%s'; equivalent to 'kubectl get statefulsets -n %s'", namespace, namespace)
 	statefulSetList, err := kc.Clientset.AppsV1().StatefulSets(namespace).List(metav1.ListOptions{})
 	return statefulSetList, errors.Wrapf(err, "could not get a list of deployments in namespace: '%s'", namespace)
 }
 
-func (kc *Client) ListCronJobs(ctx context.Context, namespace string) (*batchv1beta1.CronJobList, error) {
+func (kc *Client) ListCronJobs(namespace string) (*batchv1beta1.CronJobList, error) {
 	log.Infof("listing cronjobs in namespace: '%s'; equivalent to 'kubectl get cronjobs -n %s'", namespace, namespace)
 	cronJobList, err := kc.Clientset.BatchV1beta1().CronJobs(namespace).List(metav1.ListOptions{})
 	return cronJobList, errors.Wrapf(err, "could not get a list of deployments in namespace: '%s'", namespace)
+}
+
+func (kc *Client) GetImagesFromPods(namespace string) ([]string, error) {
+	pods := kc.ListPods(namespace, "", "")
+	for _, pod := range pod.Items {
+		continue
+	}
+	return []string{}, nil
 }

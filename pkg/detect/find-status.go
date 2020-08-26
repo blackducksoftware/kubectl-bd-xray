@@ -21,3 +21,48 @@ func FindScanStatusFile(path string) (string, error) {
 	}
 	return "", err
 }
+
+type Status struct {
+	FormatVersion  string        `json:"formatVersion"`
+	DetectVersion  string        `json:"detectVersion"`
+	ProjectName    string        `json:"projectName"`
+	ProjectVersion string        `json:"projectVersion"`
+	Detectors      []interface{} `json:"detectors"`
+	Status         []struct {
+		Key    string `json:"key"`
+		Status string `json:"status"`
+	} `json:"status"`
+	Issues  []interface{} `json:"issues"`
+	Results []struct {
+		// TODO: this is what we want
+		Location string `json:"location"`
+		Message  string `json:"message"`
+	} `json:"results"`
+	UnrecognizedPaths struct {
+	} `json:"unrecognizedPaths"`
+	CodeLocations []struct {
+		CodeLocationName string `json:"codeLocationName"`
+	} `json:"codeLocations"`
+}
+
+func ParseStatusJSONFile(path string) {
+	var status Status
+
+	jsonFile, err := os.Open(path)
+	if err != nil {
+    return nil, err
+	}
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(byteValue, &status)
+	return status, nil
+}
+
+func FindLocationFromStatus(status *Status)([]string){
+	var locations []string{}
+	for _, location := range status.Results {
+		locations = append(locations, location)
+	}
+	return locations
+}

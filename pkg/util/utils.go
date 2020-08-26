@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jedib0t/go-pretty/table"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -115,4 +116,18 @@ func RunAndCaptureProgress(cmd *exec.Cmd) error {
 	// outStr, errStr := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
 	// log.Debugf("command: %s:\nout:\n%s\nerr:\n%s\n", cmd.String(), outStr, errStr)
 	return nil
+}
+
+func tableP() {
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"#", "First Name", "Last Name", "Salary"})
+	t.AppendRows([]table.Row{
+		{1, "Arya", "Stark", 3000},
+		{20, "Jon", "Snow", 2000, "You know nothing, Jon Snow!"},
+	})
+	t.AppendSeparator()
+	t.AppendRow([]interface{}{300, "Tyrion", "Lannister", 5000})
+	t.AppendFooter(table.Row{"", "", "Total", 10000})
+	t.Render()
 }
