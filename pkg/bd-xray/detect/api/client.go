@@ -1,15 +1,12 @@
 package api
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
-	"strings"
-	"sync"
 	"time"
 
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray/docker"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -22,9 +19,10 @@ const (
 )
 
 type Client struct {
-	DetectPath  string
-	DetectURL   string
-	RestyClient *resty.Client
+	DetectPath      string
+	DetectURL       string
+	RestyClient     *resty.Client
+	DockerCLIClient *docker.DockerCLIClient
 }
 
 func NewDefaultClient() *Client {
@@ -44,10 +42,13 @@ func NewClient(detectFilePath, detectURL string) *Client {
 		SetDebug(false).
 		SetTimeout(180 * time.Second)
 
+	dockerCLIClient, _ := docker.NewCliClient()
+
 	return &Client{
-		DetectPath:  DefaultDetectDownloadFilePath,
-		DetectURL:   DefaultDetectURL,
-		RestyClient: restyClient,
+		DetectPath:      DefaultDetectDownloadFilePath,
+		DetectURL:       DefaultDetectURL,
+		RestyClient:     restyClient,
+		DockerCLIClient: dockerCLIClient,
 	}
 }
 
@@ -65,7 +66,7 @@ func (c *Client) DownloadDetect() error {
 	if !resp.IsSuccess() {
 		return errors.Errorf("bad status code to path %s: %d, response %s", c.DetectURL, statusCode, respBody)
 	}
-	_, err = ChmodX(c.DetectPath)
+	_, err = util.ChmodX(c.DetectPath)
 	return err
 
 	// sync to the same version as the blackduck server
@@ -86,89 +87,14 @@ func (c *Client) DownloadDetectIfNotExists() error {
 
 }
 
-// func (c *Client) RunOfflineImageScan(image string) error {
-// 	// ./detect.sh -de --logging.level.com.synopsys.integration="TRACE" \
-// 	//               --blackduck.offline.mode=true \
-// 	//               --detect.docker.image="gcr.io/distroless/java-debian9:11"
+func (c *Client) RunImageScan(imageName, flags string) error {
 
-// 	cmd := GetExecCommandFromString(fmt.Sprintf("%s -de --logging.level.com.synopsys.integration=TRACE --detect.docker.image=%s --blackduck.offline.mode=true", c.DetectPath, image))
-// 	return RunAndCaptureProgress(cmd)
-// }
+	fileName := fmt.Sprintf("unsquashed-%s.tar", imageName)
+	c.DockerCLIClient.SaveDockerImage(imageName, fileName)
 
-// func (c *Client) RunDefaultOnlineImageScan(image, blackDuckUrl, blackDuckApiToken string) error {
-// 	cmd := GetExecCommandFromString(fmt.Sprintf("%s -de --logging.level.com.synopsys.integration=TRACE --detect.docker.image=%s --blackduck.url=%s --blackduck.api.token=%s --blackduck.trust.cert=true", c.DetectPath, image, blackDuckUrl, blackDuckApiToken))
-// 	return RunAndCaptureProgress(cmd)
-// }
-
-func (c *Client) RunImageScan(image string, flags string) error {
-	defaultFlags := fmt.Sprintf("-de --blackduck.trust.cert=true")
-	cmd := GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.docker.image=%s", c.DetectPath, defaultFlags, flags, image))
-	return RunAndCaptureProgress(cmd)
-}
-
-// ChmodX executes chmod +x on given filepath
-func ChmodX(filePath string) (string, error) {
-	cmd := GetExecCommandFromString(fmt.Sprintf("chmod +x %s", filePath))
-	return RunCommand(cmd)
-}
-
-func GetExecCommandFromString(fullCmd string) *exec.Cmd {
-	cmd := strings.Fields(fullCmd)
-	cmdName := cmd[0]
-	cmdArgs := cmd[1:]
-	return exec.Command(cmdName, cmdArgs...)
-}
-
-func RunCommand(cmd *exec.Cmd) (string, error) {
-	currDirectory := cmd.Dir
-	if 0 == len(currDirectory) {
-		currDirectory, _ = os.Executable()
-	}
-
-	log.Infof("running command: '%s' in directory: '%s'", cmd.String(), currDirectory)
-	cmdOutput, err := cmd.CombinedOutput()
-	cmdOutputStr := string(cmdOutput)
-	log.Tracef("command: '%s' output:\n%s", cmd.String(), cmdOutput)
-	return cmdOutputStr, errors.Wrapf(err, "unable to run command '%s': %s", cmd.String(), cmdOutputStr)
-}
-
-// RunAndCaptureProgress runs a long running command and continuously streams its output
-func RunAndCaptureProgress(cmd *exec.Cmd) error {
-	var stdoutBuf, stderrBuf bytes.Buffer
-	stdoutIn, _ := cmd.StdoutPipe()
-	stderrIn, _ := cmd.StderrPipe()
-	// TODO: not sure why but this is needed, otherwise stdin is constantly fed input
-	_, _ = cmd.StdinPipe()
-
-	var errStdout, errStderr error
-	stdout := io.MultiWriter(os.Stdout, &stdoutBuf)
-	stderr := io.MultiWriter(os.Stderr, &stderrBuf)
-
-	err := cmd.Start()
-	if err != nil {
-		return errors.Wrapf(err, "cmd.Start() failed for %s", cmd.String())
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		_, errStdout = io.Copy(stdout, stdoutIn)
-		wg.Done()
-	}()
-
-	_, errStderr = io.Copy(stderr, stderrIn)
-	wg.Wait()
-
-	err = cmd.Wait()
-	if err != nil {
-		return errors.Wrapf(err, "cmd.Wait() failed for %s", cmd.String())
-	}
-
-	if errStdout != nil || errStderr != nil {
-		return errors.Errorf("failed to capture stdout or stderr from command '%s'", cmd.String())
-	}
-	// outStr, errStr := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
-	// log.Debugf("command: %s:\nout:\n%s\nerr:\n%s\n", cmd.String(), outStr, errStr)
-	return nil
+	// TODO: name it uniquely, best candidate is sha of the image in the folder name
+	defaultFlags := fmt.Sprintf("-de --blackduck.trust.cert=true --detect.cleanup=false --detect.tools.output.path=$HOME/blackduck/tools --detect.output.path=$HOME/blackduck/%s", util.GenerateRandomString(16))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.docker.image=%s", c.DetectPath, defaultFlags, flags, imageName))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s", c.DetectPath, defaultFlags, flags, fileName))
+	return util.RunAndCaptureProgress(cmd)
 }
