@@ -1,7 +1,10 @@
 package detect
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
@@ -45,24 +48,24 @@ type Status struct {
 	} `json:"codeLocations"`
 }
 
-func ParseStatusJSONFile(path string) {
+func ParseStatusJSONFile(path string) (*Status, error) {
 	var status Status
 
 	jsonFile, err := os.Open(path)
 	if err != nil {
-    return nil, err
+		return nil, err
 	}
 	defer jsonFile.Close()
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	json.Unmarshal(byteValue, &status)
-	return status, nil
+	return &status, nil
 }
 
-func FindLocationFromStatus(status *Status)([]string){
-	var locations []string{}
-	for _, location := range status.Results {
-		locations = append(locations, location)
+func FindLocationFromStatus(status *Status) []string {
+	var locations []string
+	for _, result := range status.Results {
+		locations = append(locations, result.Location)
 	}
 	return locations
 }

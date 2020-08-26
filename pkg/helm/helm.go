@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/ghodss/yaml"
@@ -312,68 +311,68 @@ func ParseChartVersion(chartURL string) string {
 }
 
 // GetLatestChartVersionForAppVersion ...
-func GetLatestChartVersionForAppVersion(chartURLs []string, appName, version string) (string, error) {
-	url, err := GetLatestChartURLForAppVersion(chartURLs, appName, version)
-	if err != nil {
-		return "", fmt.Errorf("%s", err)
-	}
-	return ParseChartVersion(url), nil
-}
+// func GetLatestChartVersionForAppVersion(chartURLs []string, appName, version string) (string, error) {
+// 	url, err := GetLatestChartURLForAppVersion(chartURLs, appName, version)
+// 	if err != nil {
+// 		return "", fmt.Errorf("%s", err)
+// 	}
+// 	return ParseChartVersion(url), nil
+// }
 
 // GetLatestChartURLForAppVersion ...
-func GetLatestChartURLForAppVersion(chartURLs []string, appName, version string) (string, error) {
-	latestChartNum := 0
-	latestURL := ""
-	for _, url := range chartURLs {
-		packageNameSlice := ParsePackageName(url)
-		pkgName := packageNameSlice[0]
-		pkgVersion := packageNameSlice[1]
-		chrtNum := packageNameSlice[2]
-		if chrtNum == "" {
-			chrtNum = "0"
-		}
-		if pkgName == appName {
-			if CompareVersions(pkgVersion, version) == 0 {
-				chrtNumInt, _ := strconv.Atoi(chrtNum)
-				if chrtNumInt >= latestChartNum {
-					latestURL = url
-					latestChartNum = chrtNumInt
-				}
-			}
-		}
-	}
-	return latestURL, nil
-}
+// func GetLatestChartURLForAppVersion(chartURLs []string, appName, version string) (string, error) {
+// 	latestChartNum := 0
+// 	latestURL := ""
+// 	for _, url := range chartURLs {
+// 		packageNameSlice := ParsePackageName(url)
+// 		pkgName := packageNameSlice[0]
+// 		pkgVersion := packageNameSlice[1]
+// 		chrtNum := packageNameSlice[2]
+// 		if chrtNum == "" {
+// 			chrtNum = "0"
+// 		}
+// 		if pkgName == appName {
+// 			if CompareVersions(pkgVersion, version) == 0 {
+// 				chrtNumInt, _ := strconv.Atoi(chrtNum)
+// 				if chrtNumInt >= latestChartNum {
+// 					latestURL = url
+// 					latestChartNum = chrtNumInt
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return latestURL, nil
+// }
 
 // GetLatestChartURLForApp ...
-func GetLatestChartURLForApp(chartURLs []string, appName string) (string, error) {
-	latestVersion := "0.0.0"
-	latestChartNum := 0
-	latestURL := ""
-	for _, url := range chartURLs {
-		packageNameSlice := ParsePackageName(url)
-		pkgName := packageNameSlice[0]
-		pkgVersion := packageNameSlice[1]
-		chrtNum := packageNameSlice[2]
-		if chrtNum == "" {
-			chrtNum = "0"
-		}
-		if pkgName == appName {
-			if CompareVersions(pkgVersion, latestVersion) >= 0 {
-				if CompareVersions(pkgVersion, latestVersion) > 0 {
-					latestChartNum = 0 // reset latestChartNum if a greater version is found
-				}
-				latestVersion = pkgVersion
-				chrtNumInt, _ := strconv.Atoi(chrtNum)
-				if chrtNumInt >= latestChartNum {
-					latestURL = url
-					latestChartNum = chrtNumInt
-				}
-			}
-		}
-	}
-	return latestURL, nil
-}
+// func GetLatestChartURLForApp(chartURLs []string, appName string) (string, error) {
+// 	latestVersion := "0.0.0"
+// 	latestChartNum := 0
+// 	latestURL := ""
+// 	for _, url := range chartURLs {
+// 		packageNameSlice := ParsePackageName(url)
+// 		pkgName := packageNameSlice[0]
+// 		pkgVersion := packageNameSlice[1]
+// 		chrtNum := packageNameSlice[2]
+// 		if chrtNum == "" {
+// 			chrtNum = "0"
+// 		}
+// 		if pkgName == appName {
+// 			if CompareVersions(pkgVersion, latestVersion) >= 0 {
+// 				if CompareVersions(pkgVersion, latestVersion) > 0 {
+// 					latestChartNum = 0 // reset latestChartNum if a greater version is found
+// 				}
+// 				latestVersion = pkgVersion
+// 				chrtNumInt, _ := strconv.Atoi(chrtNum)
+// 				if chrtNumInt >= latestChartNum {
+// 					latestURL = url
+// 					latestChartNum = chrtNumInt
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return latestURL, nil
+// }
 
 // ParsePackageName returns {app-name, app-version, chart-num}
 // synopsys-alert-5.3.1-12 -> [synopsys-alert-5.3.1-12 synopsys-alert 5.3.1 -12 12]

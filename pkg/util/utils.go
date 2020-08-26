@@ -126,7 +126,7 @@ func tableP() {
 		{1, "Arya", "Stark", 3000},
 		{20, "Jon", "Snow", 2000, "You know nothing, Jon Snow!"},
 	})
-	t.AppendSeparator()
+	// t.AppendSeparator()
 	t.AppendRow([]interface{}{300, "Tyrion", "Lannister", 5000})
 	t.AppendFooter(table.Row{"", "", "Total", 10000})
 	t.Render()
