@@ -1,0 +1,27 @@
+# Ignore all
+*
+# Unignore all with extensions
+!*.*
+# Unignore all dirs
+!*/
+### Above combination will ignore all files without extension ###
+
+# goreleaser
+**/dist/
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+**main
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+**/_output/
+
+**/.idea/
+
+.DS_Store
