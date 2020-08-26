@@ -87,13 +87,14 @@ func (c *Client) DownloadDetectIfNotExists() error {
 
 }
 
-func (c *Client) RunImageScan(imageName, flags string) error {
+func (c *Client) RunImageScan(imageName, outputDirName, flags string) error {
 
 	fileName := fmt.Sprintf("unsquashed-%s.tar", imageName)
 	c.DockerCLIClient.SaveDockerImage(imageName, fileName)
 
 	// TODO: name it uniquely, best candidate is sha of the image in the folder name
-	defaultFlags := fmt.Sprintf("-de --blackduck.trust.cert=true --detect.cleanup=false --detect.tools.output.path=$HOME/blackduck/tools --detect.output.path=$HOME/blackduck/%s", util.GenerateRandomString(16))
+	// --logging.level.com.synopsys.integration=OFF
+	defaultFlags := fmt.Sprintf("-de --blackduck.trust.cert=true --detect.cleanup=false --logging.level.com.synopsys.integration=OFF --detect.tools.output.path=$HOME/blackduck/tools --detect.output.path=%s", outputDirName)
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.docker.image=%s", c.DetectPath, defaultFlags, flags, imageName))
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s", c.DetectPath, defaultFlags, flags, fileName))
 	return util.RunAndCaptureProgress(cmd)

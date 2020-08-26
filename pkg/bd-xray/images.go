@@ -3,9 +3,12 @@ package bd_xray
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/oklog/run"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -41,7 +44,11 @@ func SetupImageScanCommand() *cobra.Command {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	// var mainGroup run.Group
 	var goRoutineGroup run.Group
+	var printerGoRoutine run.Group
+	outputChan := make(chan *util.ScanStatusTableValues)
+	printingFinishedChannel := make(chan bool, 1)
 
 	command := &cobra.Command{
 		Use:   "image DOCKER_IMAGE...",
@@ -51,19 +58,44 @@ func SetupImageScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+
+			printerGoRoutine.Add(func() error {
+				util.PrintScanStatusTable(outputChan, printingFinishedChannel)
+				return nil
+			}, func(error) {
+				cancel()
+			})
+
 			for _, image := range args {
 				image := image
 				log.Infof("Scanning image: %s", image)
 				goRoutineGroup.Add(func() error {
-					return RunImageScanCommand(image, flagMap, ctx)
+					return RunImageScanCommand(ctx, image, flagMap, outputChan)
 				}, func(error) {
 					cancel()
 				})
 			}
 
-			err := goRoutineGroup.Run()
+			log.Debugf("starting printer goroutine")
+			var err error
+
+			go printerGoRoutine.Run()
+
+			log.Debugf("starting scanning goroutines")
+
+			err = goRoutineGroup.Run()
 			if err != nil {
 				log.Fatalf("FATAL ERROR: %+v", err)
+			}
+			log.Debugf("closing the output channel")
+
+			close(outputChan)
+			// time.Sleep(10 * time.Second)
+
+			// TODO: Block on printerGoRoutine
+			select {
+			case msg1 := <-printingFinishedChannel:
+				fmt.Printf("Done: %+v", msg1)
 			}
 		},
 	}
@@ -77,7 +109,7 @@ func SetupImageScanCommand() *cobra.Command {
 	return command
 }
 
-func RunImageScanCommand(image string, flagMap map[string]interface{}, ctx context.Context) error {
+func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]interface{}, scanStatusTableValues chan *util.ScanStatusTableValues) error {
 	detectClient := detect.NewDefaultClient()
 	detectClient.DownloadDetectIfNotExists()
 
@@ -90,12 +122,45 @@ func RunImageScanCommand(image string, flagMap map[string]interface{}, ctx conte
 		flagsToPassToDetect += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
 	}
 
-	err := detectClient.RunImageScan(image, flagsToPassToDetect)
+	homeDir, _ := os.UserHomeDir()
+	outputDirName := fmt.Sprintf("%s/blackduck/%s", homeDir, util.GenerateRandomString(16))
+	log.Infof("output dir is: %s", outputDirName)
+	// actually scan
+	log.Tracef("starting image scan")
+	err := detectClient.RunImageScan(image, outputDirName, flagsToPassToDetect)
+	if err != nil {
+		return err
+	}
+
+	// parsing output infos
+	log.Debugf("finding scan status file")
+	statusFilePath, err := detect.FindScanStatusFile(outputDirName)
+	if err != nil {
+		return err
+	}
+	log.Infof("statusFilePath is known to be: %s", statusFilePath)
+	statusJSON, err := detect.ParseStatusJSONFile(statusFilePath)
+	if err != nil {
+		return err
+	}
+	// log.Infof("")
+	locations := detect.FindLocationFromStatus(statusJSON)
+	if len(locations) == 0 {
+		return errors.Errorf("no location found")
+	}
+	location := locations[0]
+	log.Infof("location in Black Duck: %s", location)
+
+	outputRow := &util.ScanStatusTableValues{ImageName: image, BlackDuckURL: location}
+	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
+	// scanStatusTableValues <- outputRow
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case scanStatusTableValues <- outputRow:
+		log.Debug("Got output")
+	}
+
 	return err
 }
-
-func ParseForBomURL() {
-
-}
-
-// docker run -v

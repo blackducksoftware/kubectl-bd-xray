@@ -118,16 +118,32 @@ func RunAndCaptureProgress(cmd *exec.Cmd) error {
 	return nil
 }
 
-func tableP() {
+type ScanStatusTableValues struct {
+	ImageName    string
+	BlackDuckURL string
+}
+
+func PrintScanStatusTable(tableValues <-chan *ScanStatusTableValues, printingFinishedChannel chan<- bool) {
+	log.Infof("inside table printer")
 	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"#", "First Name", "Last Name", "Salary"})
-	t.AppendRows([]table.Row{
-		{1, "Arya", "Stark", 3000},
-		{20, "Jon", "Snow", 2000, "You know nothing, Jon Snow!"},
-	})
-	// t.AppendSeparator()
-	t.AppendRow([]interface{}{300, "Tyrion", "Lannister", 5000})
-	t.AppendFooter(table.Row{"", "", "Total", 10000})
-	t.Render()
+	// t.SetOutputMirror(os.Stdout)
+	// t.SetAutoIndex(true)
+	t.AppendHeader(table.Row{"Image Name", "BlackDuck URL"})
+
+	// process output structs concurrently
+	log.Infof("waiting for values over channel")
+	for tableValue := range tableValues {
+		log.Infof("inside tableValue image: %s", tableValue.ImageName)
+		log.Infof("inside tableValue image: %s", tableValue.BlackDuckURL)
+		t.AppendRow([]interface{}{
+			fmt.Sprintf("%s", tableValue.ImageName),
+			fmt.Sprintf("%s", tableValue.BlackDuckURL),
+		})
+	}
+	// TODO: to be able to render concurrently
+	log.Infof("rendering the table")
+	fmt.Printf("\n%s\n\n", t.Render())
+
+	printingFinishedChannel <- true
+	close(printingFinishedChannel)
 }

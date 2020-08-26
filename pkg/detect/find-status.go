@@ -7,9 +7,11 @@ import (
 	"os"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	log "github.com/sirupsen/logrus"
 )
 
 func FindScanStatusFile(path string) (string, error) {
+	log.Tracef("Searching for status file in %s", path)
 	_, directory_names, filenames, err := util.GetFilesAndDirectories(path)
 	if err != nil {
 		return "", err
@@ -20,9 +22,15 @@ func FindScanStatusFile(path string) (string, error) {
 		}
 	}
 	for _, dirname := range directory_names {
-		return FindScanStatusFile(fmt.Sprintf("%s/%s", path, dirname))
+		filepath, err := FindScanStatusFile(fmt.Sprintf("%s/%s", path, dirname))
+		if err != nil {
+			return "", err
+		}
+		if filepath != "" {
+			return filepath, nil
+		}
 	}
-	return "", err
+	return "", nil
 }
 
 type Status struct {
