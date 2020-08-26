@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	detectApi "github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray/detect/api"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
 	"github.com/oklog/run"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -78,7 +78,7 @@ func SetupImageScanCommand() *cobra.Command {
 }
 
 func RunImageScanCommand(image string, flagMap map[string]interface{}, ctx context.Context) error {
-	detectClient := detectApi.NewDefaultClient()
+	detectClient := detect.NewDefaultClient()
 	detectClient.DownloadDetectIfNotExists()
 
 	flagsToPassToDetect := ""

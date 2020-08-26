@@ -1,11 +1,11 @@
-package api
+package detect
 
 import (
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray/docker"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
