@@ -11,7 +11,7 @@ import (
 )
 
 func FindScanStatusFile(path string) (string, error) {
-	log.Tracef("Searching for status file in %s", path)
+	log.Infof("Searching for status file in %s", path)
 	_, directory_names, filenames, err := util.GetFilesAndDirectories(path)
 	if err != nil {
 		return "", err

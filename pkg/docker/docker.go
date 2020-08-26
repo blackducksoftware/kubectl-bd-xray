@@ -41,7 +41,9 @@ func (cli *DockerCLIClient) SaveDockerImage(image, filePath string) error {
 	// TODO: use golang client instead of docker
 	// cli.DockerClient.ImageSave()
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker save -o %s %s", filePath, image))
-	return util.RunAndCaptureProgress(cmd)
+	var err error
+	_, err = util.RunCommand(cmd)
+	return err
 }
 
 // func SquashDockerImage() {

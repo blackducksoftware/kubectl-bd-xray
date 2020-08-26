@@ -87,15 +87,21 @@ func (c *Client) DownloadDetectIfNotExists() error {
 
 }
 
-func (c *Client) RunImageScan(imageName, outputDirName, flags string) error {
+func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags string) error {
 
-	fileName := fmt.Sprintf("unsquashed-%s.tar", imageName)
-	c.DockerCLIClient.SaveDockerImage(imageName, fileName)
-
-	// TODO: name it uniquely, best candidate is sha of the image in the folder name
+	imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
+	c.DockerCLIClient.SaveDockerImage(imageName, imageTarFilePath)
+	// TODO: according to docs here: https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/650969090/Diagnostic+Mode --diagnosticExtended flag means logging is set to debug and cleanup is set to false by default, however, it seems --detect.cleanup=false is needed in order to keep the status.json file.
 	// --logging.level.com.synopsys.integration=OFF
-	defaultFlags := fmt.Sprintf("-de --blackduck.trust.cert=true --detect.cleanup=false --logging.level.com.synopsys.integration=OFF --detect.tools.output.path=$HOME/blackduck/tools --detect.output.path=%s", outputDirName)
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.docker.image=%s", c.DetectPath, defaultFlags, flags, imageName))
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s", c.DetectPath, defaultFlags, flags, fileName))
-	return util.RunAndCaptureProgress(cmd)
+	// --detect.cleanup=false
+	defaultGlobalFlags := fmt.Sprintf("--diagnosticExtended --detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=$HOME/blackduck/tools --detect.output.path=%s", outputDirName)
+	// TODO: figure out concurrent docker-inspector scans
+	// TODO: move this strings as constants
+	// imageSpecificFlags := fmt.Sprintf("--detect.docker.image=%s", imageName)
+	imageSpecificFlags := fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.project.name=%s", imageTarFilePath, imageName)
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, defaultGlobalFlags, imageSpecificFlags, userSpecifiedDetectFlags))
+	var err error
+	// err = util.RunAndCaptureProgress(cmd)
+	_, err = util.RunCommand(cmd)
+	return err
 }

@@ -123,6 +123,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	}
 
 	homeDir, _ := os.UserHomeDir()
+	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
 	outputDirName := fmt.Sprintf("%s/blackduck/%s", homeDir, util.GenerateRandomString(16))
 	log.Infof("output dir is: %s", outputDirName)
 	// actually scan
@@ -133,7 +134,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	}
 
 	// parsing output infos
-	log.Debugf("finding scan status file")
+	log.Infof("finding scan status file with outputDirName: %s", outputDirName)
 	statusFilePath, err := detect.FindScanStatusFile(outputDirName)
 	if err != nil {
 		return err
