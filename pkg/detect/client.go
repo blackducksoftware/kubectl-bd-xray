@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// TODO: maybe makes sense to put detect script under ~/blackduck as well (other than the bootstrap problem)
 	DefaultDetectDownloadFilePath = "./detect.sh"
 	DefaultDetectURL              = "https://detect.synopsys.com/detect.sh"
 	WindowsDetectURL              = "https://detect.synopsys.com/detect.ps1"
@@ -38,7 +39,6 @@ func NewDefaultClient() *Client {
 }
 
 func NewClient(detectFilePath, detectURL string) *Client {
-
 	restyClient := resty.New().
 		// for all requests, you can use relative path; resty doesn't care whether relative path starts with /
 		SetHostURL(detectURL).
@@ -48,22 +48,21 @@ func NewClient(detectFilePath, detectURL string) *Client {
 		SetDebug(false).
 		SetTimeout(180 * time.Second)
 
-	dockerCLIClient, _ := docker.NewCliClient()
+	dockerCLIClient, err := docker.NewCliClient()
+	util.DoOrDie(err)
 
 	return &Client{
-		DetectPath:      DefaultDetectDownloadFilePath,
-		DetectURL:       DefaultDetectURL,
+		DetectPath:      detectFilePath,
+		DetectURL:       detectURL,
 		RestyClient:     restyClient,
 		DockerCLIClient: dockerCLIClient,
 	}
 }
 
 func (c *Client) DownloadDetect() error {
-
 	request := c.RestyClient.R().
 		// see: https://github.com/go-resty/resty#save-http-response-into-file
 		SetOutput(c.DetectPath)
-
 	resp, err := request.Get(c.DetectURL)
 	if err != nil {
 		return errors.Wrapf(err, "issue GET request to %s", request.URL)
@@ -74,23 +73,20 @@ func (c *Client) DownloadDetect() error {
 	}
 	_, err = util.ChmodX(c.DetectPath)
 	return err
-
-	// sync to the same version as the blackduck server
 }
 
 func (c *Client) DownloadDetectIfNotExists() error {
-
 	if _, err := os.Stat(c.DetectPath); err == nil {
 		log.Debugf("detect found at %s, not downloading again, running sync recommended", c.DetectPath)
+		// TODO: sync to latest version of the specified Black Duck server, if possible
 		return nil
 	} else if os.IsNotExist(err) {
 		log.Debugf("detect not found at %s, downloading ...", c.DetectPath)
-		// if fly not found at path, then download a fresh copy
+		// if detect not found at path, then download a fresh copy
 		return c.DownloadDetect()
 	} else {
 		return errors.Wrapf(err, "unable to check if file %s exists", c.DetectPath)
 	}
-
 }
 
 func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags string) error {
@@ -102,7 +98,7 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 	// --detect.cleanup=false
 	defaultGlobalFlags := fmt.Sprintf("--diagnosticExtended --detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	// TODO: figure out concurrent docker-inspector scans
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageName, imageTarFilePath, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	var err error
 	// NOTE: by design, we explicitly don't print out the detect output
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
@@ -111,14 +107,47 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 	return err
 }
 
-func (c *Client) GetDetectDefaultDockerImageScanFlags(imageName string) string {
+// GetDetectDefaultScanFlags: this is the default scan that detect invokes (which is just docker-inspector + signature scanner)
+func (c *Client) GetDetectDefaultScanFlags(imageName string) string {
 	return fmt.Sprintf("--detect.docker.image=%s", imageName)
 }
 
-func (c *Client) GetSignatureScanOnlyFlags(imageName, imageTarFilePath, imageVersion string) string {
-	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.project.name=%s", imageTarFilePath, imageName)
+// GetDockerInspectorScanOnlyFlags docker-inspector only
+func (c *Client) GetDockerInspectorScanOnlyFlags(imageName string) string {
+	return fmt.Sprintf("--detect.tools=DOCKER %s", c.GetDetectDefaultScanFlags(imageName))
 }
 
-// TODO: signature + binary scanners
+// GetSignatureScanOnlyFlags signature scanner only
+func (c *Client) GetSignatureScanOnlyFlags(imageTarFilePath, imageName, imageVersion string) string {
+	// NOTE: project name is required, since otherwise it uses the directory name from which the tarball was scanned
+	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s %s", imageTarFilePath, c.GetProjectNameFlag(imageName))
+}
 
-// TODO: signature + binary + docker inspector scanners
+// GetBinaryScanOnlyFlags binary scanner only
+func (c *Client) GetBinaryScanOnlyFlags(imageTarFilePath, imageName, imageVersion string) string {
+	// TODO: not sure if project name is required
+	return fmt.Sprintf("--detect.tools=BINARY_SCAN --detect.binary.scan.file.path=%s %s", imageTarFilePath, c.GetProjectNameFlag(imageName))
+}
+
+// GetBinaryAndSignatureScanFlags signature + binary scanners
+func (c *Client) GetBinaryAndSignatureScanFlags(imageTarFilePath, imageName, imageVersion string) string {
+	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN,BINARY_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.binary.scan.file.path=%s %s", imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
+}
+
+// GetAllScanFlags docker-inspector + signature + binary
+func (c *Client) GetAllScanFlags(imageTarFilePath, imageName, imageVersion string) string {
+	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
+	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
+}
+
+func (c *Client) GetProjectNameFlag(projectName string) string {
+	return fmt.Sprintf("--detect.project.name=%s", projectName)
+}
+
+func (c *Client) GetProjectVersionNameFlag(projectVersionName string) string {
+	return fmt.Sprintf("--detect.project.version.name=%s", projectVersionName)
+}
+
+func (c *Client) GetCodeLocationNameFlag(codeLocationName string) string {
+	return fmt.Sprintf("--detect.code.location.name=%s", codeLocationName)
+}
