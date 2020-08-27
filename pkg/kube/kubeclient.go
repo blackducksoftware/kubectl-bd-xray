@@ -119,7 +119,7 @@ func (kc *Client) GetImagesFromDeployments(ctx context.Context, namespace string
 	return unique(imageList), nil
 }
 
-//Get images from deployments and Pods returning a list of unique images
+// Get images from deployments and Pods returning a list of unique images
 func (kc *Client) GetImagesFromNamespace(ctx context.Context, namespace string) ([]string, error) {
 	var imageList, imageList2 []string
 	var err error

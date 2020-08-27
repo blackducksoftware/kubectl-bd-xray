@@ -116,7 +116,7 @@ func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outp
 	defaultGlobalFlags := fmt.Sprintf("--detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	log.Tracef("default global flags: %s", defaultGlobalFlags)
 	// TODO: figure out concurrent docker-inspector scans
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetConcurrentDockerInspectorAndSignatureScanFlags(imageName, imageTag), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetConcurrentDockerInspectorAndSignatureScanFlags(fullImageName, imageName, imageTag), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
@@ -142,8 +142,8 @@ func (c *Client) GetDetectDefaultScanFlags(imageName string) string {
 	return fmt.Sprintf("--detect.docker.image=%s", imageName)
 }
 
-func (c *Client) GetConcurrentDockerInspectorAndSignatureScanFlags(imageName, imageVersion string) string {
-	return fmt.Sprintf("%s %s %s %s", c.GetDetectDefaultScanFlags(imageName), c.GetConcurrentDockerInspectorScanFlags(), c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageVersion))
+func (c *Client) GetConcurrentDockerInspectorAndSignatureScanFlags(fullImageName, imageName, imageVersion string) string {
+	return fmt.Sprintf("%s %s %s %s", c.GetDetectDefaultScanFlags(fullImageName), c.GetConcurrentDockerInspectorScanFlags(), c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageVersion))
 }
 
 func (c *Client) GetConcurrentDockerInspectorScanFlags() string {
