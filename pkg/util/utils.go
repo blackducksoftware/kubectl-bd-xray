@@ -173,3 +173,19 @@ func SetUpLogger(logLevelStr string) error {
 	log.Infof("log level set to '%s'", log.GetLevel())
 	return nil
 }
+
+func DoOrDie(err error) {
+	DoOrDieWithMsg(err, "Fatal error: ")
+}
+
+func DoOrDieWithMsg(err error, msg string) {
+	if err != nil {
+		log.Fatalf("%s; err: %+v\n", msg, err)
+	}
+}
+
+func GetHomeDir() string {
+	homeDir, err := os.UserHomeDir()
+	DoOrDieWithMsg(err, "error getting user home directory")
+	return homeDir
+}
