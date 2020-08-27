@@ -7,7 +7,7 @@ import (
 )
 
 
-func DockerSquash(imageName string) error {
+func DockerSquash(imageName, tagName string) error {
 	// Ensure docker-squash is installed
 	command := "pip install docker-squash"
 	cmd := exec.Command("sh", "-c", command)
@@ -17,8 +17,7 @@ func DockerSquash(imageName string) error {
 	}
 
 	// Squash the image
-	imageTag := "mysecondimage:squashed"
-	command = fmt.Sprintf("docker-squash -t %s %s", imageTag, imageName)
+	command = fmt.Sprintf("docker-squash -t %s %s", tagName, imageName)
 	cmd = exec.Command("sh", "-c", command)
 	_, err = util.RunCommand(cmd)
 	if err != nil {
