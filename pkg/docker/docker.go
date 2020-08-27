@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aquasecurity/fanal/image/daemon"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
@@ -33,7 +34,7 @@ func (cli *DockerCLIClient) ListImages(ctx context.Context, reference string) ([
 		filterArgs = filters.NewArgs(filters.Arg("reference", reference))
 		// fmt.Sprintf("%s:%s", args.Repository, args.Tag)))
 	}
-	log.Tracef("filter arguments for reference %s: %s", reference, filterArgs)
+	log.Tracef("filter arguments for reference %s: %+v", reference, filterArgs)
 	images, err := cli.DockerClient.ImageList(ctx, types.ImageListOptions{
 		All:     false,
 		Filters: filterArgs,
@@ -44,11 +45,38 @@ func (cli *DockerCLIClient) ListImages(ctx context.Context, reference string) ([
 
 // TODO: not working
 func (cli *DockerCLIClient) GetDockerImage(ctx context.Context, ref name.Reference) error {
-
 	imageInspect, _, err := cli.DockerClient.ImageInspectWithRaw(ctx, ref.Name())
-	log.Infof("imageInspect looks like: %s", imageInspect)
+	log.Infof("imageInspect looks like: %+v", imageInspect)
 	log.Infof("\n\n id looks: %s\n\n", imageInspect.ID)
 	return err
+}
+
+func (cli *DockerCLIClient) GetImageSha(image string) (string, error) {
+	var shaOfImage string
+
+	ref, err := name.ParseReference(image)
+	if err != nil {
+		return "", err
+	}
+	log.Tracef("reference: %s", ref)
+	img, cleanup, _ := daemon.Image(ref)
+	defer cleanup()
+	log.Tracef("image: %s", img)
+
+	// imageSummary, _ := dockerCLIClient.ListImages(context.TODO(), ref.Name())
+	// for _, x := range imageSummary {
+	// 	log.Infof("ID: %s", x.ID)
+	// }
+
+	// dockerCLIClient.GetDockerImage(context.TODO(), ref)
+
+	cfgName, err := img.ConfigName()
+	if err != nil {
+		return "", err
+	}
+	shaOfImage = cfgName.Hex
+	log.Tracef("image digest: %s", shaOfImage)
+	return shaOfImage, nil
 }
 
 // SaveDockerImage creates a tar as an un-squashed image

@@ -6,7 +6,6 @@ import (
 	"os/exec"
 )
 
-
 func DockerSquash(imageName, tagName string) error {
 	// Ensure docker-squash is installed
 	command := "pip install docker-squash"
