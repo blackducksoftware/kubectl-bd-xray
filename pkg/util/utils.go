@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jedib0t/go-pretty/table"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -132,34 +131,6 @@ func RunCommandAndCaptureProgress(cmd *exec.Cmd) error {
 // 	// log.Debugf("command: %s:\nout:\n%s\nerr:\n%s\n", cmd.String(), outStr, errStr)
 // 	return nil
 // }
-
-type ScanStatusTableValues struct {
-	ImageName    string
-	BlackDuckURL string
-}
-
-func PrintScanStatusTable(tableValues <-chan *ScanStatusTableValues, printingFinishedChannel chan<- bool) {
-	log.Tracef("inside table printer")
-	t := table.NewWriter()
-	// t.SetOutputMirror(os.Stdout)
-	// t.SetAutoIndex(true)
-	t.AppendHeader(table.Row{"Image Name", "BlackDuck URL"})
-
-	// process output structs concurrently
-	log.Tracef("waiting for values over channel")
-	for tableValue := range tableValues {
-		log.Tracef("processing table value for image: %s, url: %s", tableValue.ImageName, tableValue.BlackDuckURL)
-		t.AppendRow([]interface{}{
-			fmt.Sprintf("%s", tableValue.ImageName),
-			fmt.Sprintf("%s", tableValue.BlackDuckURL),
-		})
-	}
-	// TODO: to be able to render concurrently
-	log.Tracef("rendering the table")
-	fmt.Printf("\n%s\n\n", t.Render())
-	printingFinishedChannel <- true
-	close(printingFinishedChannel)
-}
 
 func SetUpLogger(logLevelStr string) error {
 	logLevel, err := log.ParseLevel(logLevelStr)

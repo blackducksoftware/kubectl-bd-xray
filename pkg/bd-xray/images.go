@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jedib0t/go-pretty/table"
 	"github.com/oklog/run"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -46,7 +47,7 @@ func SetupImageScanCommand() *cobra.Command {
 	// var mainGroup run.Group
 	var goRoutineGroup run.Group
 	var printerGoRoutine run.Group
-	outputChan := make(chan *util.ScanStatusTableValues)
+	outputChan := make(chan *ScanStatusTableValues)
 	printingFinishedChannel := make(chan bool, 1)
 
 	command := &cobra.Command{
@@ -59,7 +60,7 @@ func SetupImageScanCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 
 			printerGoRoutine.Add(func() error {
-				util.PrintScanStatusTable(outputChan, printingFinishedChannel)
+				PrintScanStatusTable(outputChan, printingFinishedChannel)
 				return nil
 			}, func(error) {
 				cancel()
@@ -108,7 +109,7 @@ func SetupImageScanCommand() *cobra.Command {
 	return command
 }
 
-func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]interface{}, scanStatusTableValues chan *util.ScanStatusTableValues) error {
+func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
 	detectClient := detect.NewDefaultClient()
 	detectClient.DownloadDetectIfNotExists()
 
@@ -152,7 +153,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	location := locations[0]
 	log.Infof("location in Black Duck: %s", location)
 
-	outputRow := &util.ScanStatusTableValues{ImageName: image, BlackDuckURL: location}
+	outputRow := &ScanStatusTableValues{ImageName: image, BlackDuckURL: location}
 	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
 	// scanStatusTableValues <- outputRow
 
@@ -164,4 +165,33 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	}
 
 	return err
+}
+
+type ScanStatusTableValues struct {
+	ImageName    string
+	BlackDuckURL string
+}
+
+func PrintScanStatusTable(tableValues <-chan *ScanStatusTableValues, printingFinishedChannel chan<- bool) {
+	log.Tracef("inside table printer")
+	t := table.NewWriter()
+	// t.SetOutputMirror(os.Stdout)
+	// t.SetAutoIndex(true)
+	t.AppendHeader(table.Row{"Image Name", "BlackDuck URL"})
+
+	// process output structs concurrently
+	log.Tracef("waiting for values over channel")
+	for tableValue := range tableValues {
+		log.Tracef("processing table value for image: %s, url: %s", tableValue.ImageName, tableValue.BlackDuckURL)
+		t.AppendRow([]interface{}{
+			fmt.Sprintf("%s", tableValue.ImageName),
+			fmt.Sprintf("%s", tableValue.BlackDuckURL),
+		})
+		fmt.Printf("Intermediate Table: \n%s\n\n", t.Render())
+	}
+	// TODO: to be able to render concurrently
+	log.Tracef("rendering the table")
+	fmt.Printf("\n%s\n\n", t.Render())
+	printingFinishedChannel <- true
+	close(printingFinishedChannel)
 }
