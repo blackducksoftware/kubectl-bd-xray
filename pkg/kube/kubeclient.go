@@ -2,7 +2,6 @@ package kube
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	"github.com/pkg/errors"
@@ -93,11 +92,50 @@ func (kc *Client) GetImagesFromPods(ctx context.Context, namespace string) ([]st
 	}
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
-
 			imageList = append(imageList, container.Image)
+		}
+		for _, initContainer := range pod.Spec.InitContainers {
+			imageList = append(imageList, initContainer.Image)
 		}
 	}
 	return unique(imageList), nil
+}
+
+func (kc *Client) GetImagesFromDeployments(ctx context.Context, namespace string) ([]string, error) {
+	var imageList []string
+	deployments, err := kc.ListDeployments(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, deployment := range deployments.Items {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			imageList = append(imageList, container.Image)
+		}
+		for _, initContainer := range deployment.Spec.Template.Spec.InitContainers {
+			imageList = append(imageList, initContainer.Image)
+		}
+	}
+	return unique(imageList), nil
+}
+
+//Get images from deployments and Pods returning a list of unique images
+func (kc *Client) GetImagesFromNamespace(ctx context.Context, namespace string) ([]string, error) {
+	var imageList, imageList2 []string
+	var err error
+
+	imageList, err = kc.GetImagesFromPods(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	imageList2, err = kc.GetImagesFromDeployments(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	imageList = append(imageList, imageList2...)
+	imageList = unique(imageList)
+
+	return imageList, nil
 }
 
 func unique(intSlice []string) []string {
