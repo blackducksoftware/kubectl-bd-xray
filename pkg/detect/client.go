@@ -22,6 +22,7 @@ const (
 var (
 	DefaultDetectBlackduckDirectory = fmt.Sprintf("%s/blackduck", util.GetHomeDir())
 	DefaultToolsDirectory = fmt.Sprintf("%s/tools", DefaultDetectBlackduckDirectory)
+
 )
 
 type Client struct {
@@ -102,14 +103,23 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 	// --detect.cleanup=false
 	defaultGlobalFlags := fmt.Sprintf("--diagnosticExtended --detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	// TODO: figure out concurrent docker-inspector scans
-	// TODO: move this strings as constants
-	// imageSpecificFlags := fmt.Sprintf("--detect.docker.image=%s", imageName)
-	imageSpecificFlags := fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.project.name=%s", imageTarFilePath, imageName)
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, defaultGlobalFlags, imageSpecificFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageName, imageTarFilePath, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	var err error
-	// we explicitly don't print out the detect output
+	// NOTE: by design, we explicitly don't print out the detect output
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
 	// err = util.RunCommandAndCaptureProgress(cmd)
 	_, err = util.RunCommand(cmd)
 	return err
 }
+
+func (c *Client) GetDetectDefaultDockerImageScanFlags(imageName string) string {
+	return fmt.Sprintf("--detect.docker.image=%s", imageName)
+}
+
+func (c *Client) GetSignatureScanOnlyFlags(imageName, imageTarFilePath, imageVersion string) string {
+	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.project.name=%s", imageTarFilePath, imageName)
+}
+
+// TODO: signature + binary scanners
+
+// TODO: signature + binary + docker inspector scanners
