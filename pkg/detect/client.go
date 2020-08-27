@@ -21,8 +21,7 @@ const (
 
 var (
 	DefaultDetectBlackduckDirectory = fmt.Sprintf("%s/blackduck", util.GetHomeDir())
-	DefaultToolsDirectory = fmt.Sprintf("%s/tools", DefaultDetectBlackduckDirectory)
-
+	DefaultToolsDirectory           = fmt.Sprintf("%s/tools", DefaultDetectBlackduckDirectory)
 )
 
 type Client struct {
