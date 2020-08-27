@@ -155,12 +155,8 @@ func SetupImageScanCommand() *cobra.Command {
 				cancel()
 			})
 			var err error
-			var imageList []string
 
-			cli, _ := kube.NewDefaultClient()
-			imageList, err = cli.GetImagesFromNamespace(context.Background(), "local-path-storage")
-
-			for _, image := range imageList {
+			for _, image := range args {
 				image := image
 				log.Infof("Scanning image: %s", image)
 				goRoutineGroup.Add(func() error {
