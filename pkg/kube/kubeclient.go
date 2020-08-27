@@ -2,7 +2,6 @@ package kube
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	"github.com/pkg/errors"
@@ -60,12 +59,11 @@ func (kc *Client) GetNamespace(ctx context.Context, namespace string) (*corev1.N
 	return ns, errors.Wrapf(err, "unable to get namespace '%s'", namespace)
 }
 
-func (kc *Client) ListPods(ctx context.Context, namespace string, label string, value string) (*corev1.PodList, error) {
-	selector := fmt.Sprintf("%s=%s", label, value)
-	pods, err := kc.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
-	})
-	return pods, errors.Wrapf(err, "unable to list pods in ns '%s' with label selector '%s", namespace, selector)
+func (kc *Client) ListPods(ctx context.Context, namespace string) (*corev1.PodList, error) {
+	// selector := fmt.Sprintf("%s=%s", label, value)
+	pods, err := kc.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	// return pods, errors.Wrapf(err, "unable to list pods in ns '%s' with label selector '%s", namespace, selector)
+	return pods, errors.Wrapf(err, "unable to list pods in ns '%s'", namespace)
 }
 
 func (kc *Client) ListDeployments(ctx context.Context, namespace string) (*appsv1.DeploymentList, error) {
@@ -86,10 +84,68 @@ func (kc *Client) ListCronJobs(ctx context.Context, namespace string) (*batchv1b
 	return cronJobList, errors.Wrapf(err, "could not get a list of deployments in namespace: '%s'", namespace)
 }
 
-// func (kc *Client) GetImagesFromPods(namespace string) ([]string, error) {
-// 	pods := kc.ListPods(namespace, "", "")
-// 	for _, pod := range pod.Items {
-// 		continue
-// 	}
-// 	return []string{}, nil
-// }
+func (kc *Client) GetImagesFromPods(ctx context.Context, namespace string) ([]string, error) {
+	var imageList []string
+	pods, err := kc.ListPods(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			imageList = append(imageList, container.Image)
+		}
+		for _, initContainer := range pod.Spec.InitContainers {
+			imageList = append(imageList, initContainer.Image)
+		}
+	}
+	return unique(imageList), nil
+}
+
+func (kc *Client) GetImagesFromDeployments(ctx context.Context, namespace string) ([]string, error) {
+	var imageList []string
+	deployments, err := kc.ListDeployments(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, deployment := range deployments.Items {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			imageList = append(imageList, container.Image)
+		}
+		for _, initContainer := range deployment.Spec.Template.Spec.InitContainers {
+			imageList = append(imageList, initContainer.Image)
+		}
+	}
+	return unique(imageList), nil
+}
+
+//Get images from deployments and Pods returning a list of unique images
+func (kc *Client) GetImagesFromNamespace(ctx context.Context, namespace string) ([]string, error) {
+	var imageList, imageList2 []string
+	var err error
+
+	imageList, err = kc.GetImagesFromPods(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	imageList2, err = kc.GetImagesFromDeployments(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	imageList = append(imageList, imageList2...)
+	imageList = unique(imageList)
+
+	return imageList, nil
+}
+
+func unique(intSlice []string) []string {
+    keys := make(map[string]bool)
+    list := []string{} 
+    for _, entry := range intSlice {
+        if _, value := keys[entry]; !value {
+            keys[entry] = true
+            list = append(list, entry)
+        }
+    }    
+    return list
+}
