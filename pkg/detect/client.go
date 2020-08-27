@@ -90,12 +90,11 @@ func (c *Client) DownloadDetectIfNotExists() error {
 	}
 }
 
-func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags string) error {
+func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outputDirName, userSpecifiedDetectFlags string) error {
 
 	var err error
-	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
-	// unsquashedImageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
-	uniqueString := util.GenerateRandomString(16)
+	// a unique string, but something that's human readable, i.e.: IMAGENAME_TAG_SHA
+	uniqueString := fmt.Sprintf("%s_%s_%s", imageName, imageTag, imageSha)
 	unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueString)
 	squashedImageTarFilePath := fmt.Sprintf("squashed_%s.tar", uniqueString)
 	log.Tracef("image tar file path: %s", unsquashedImageTarFilePath)
@@ -120,7 +119,7 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, imageName), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha), defaultGlobalFlags, userSpecifiedDetectFlags))
 	log.Tracef("command is: %s", cmd)
 
 	// NOTE: by design, we explicitly don't print out the detect output
@@ -181,13 +180,11 @@ func (c *Client) GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName
 	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
 }
 
-func (c *Client) GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, imageName string) string {
-	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName))
+func (c *Client) GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha string) string {
+	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s %s", c.GetConcurrentDockerInspectorScanFlags(), fullImageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageTag))
 }
 
 func (c *Client) GetProjectNameFlag(projectName string) string {
-	// TODO: replace random string with a proper project name
-	projectName = util.GenerateRandomString(16)
 	return fmt.Sprintf("--detect.project.name=%s", projectName)
 }
 

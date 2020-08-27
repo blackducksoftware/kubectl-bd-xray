@@ -107,7 +107,9 @@ func SetupImageScanCommand() *cobra.Command {
 	return command
 }
 
-func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
+func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
+	var err error
+
 	detectClient := detect.NewDefaultClient()
 	detectClient.DownloadDetectIfNotExists()
 
@@ -120,20 +122,26 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 		flagsToPassToDetect += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
 	}
 
-	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
-	// outputDirName := fmt.Sprintf("%s/%s_%s", detect.DefaultDetectBlackduckDirectory, image, util.GenerateRandomString(16))
-	outputDirName := fmt.Sprintf("%s/%s", detect.DefaultDetectBlackduckDirectory, util.GenerateRandomString(16))
-	log.Tracef("output dir is: %s", outputDirName)
+	// uniqueOutputDirName := fmt.Sprintf("%s/%s_%s", detect.DefaultDetectBlackduckDirectory, image, util.GenerateRandomString(16))
+	imageName := util.ParseImageName(fullImageName)
+	imageTag := util.ParseImageTag(fullImageName)
+	imageSha, err := detectClient.DockerCLIClient.GetImageSha(fullImageName)
+	if err != nil {
+		return err
+	}
+	// a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
+	uniqueOutputDirName := fmt.Sprintf("%s/%s_%s_%s", detect.DefaultDetectBlackduckDirectory, imageName, imageSha, util.GenerateRandomString(16))
+	log.Tracef("output dir is: %s", uniqueOutputDirName)
 	// actually scan
 	log.Tracef("starting image scan")
-	err := detectClient.RunImageScan(image, outputDirName, flagsToPassToDetect)
+	err = detectClient.RunImageScan(fullImageName, imageName, imageTag, imageSha, uniqueOutputDirName, flagsToPassToDetect)
 	if err != nil {
 		return err
 	}
 
 	// parsing output infos
-	log.Infof("finding scan status file from outputDirName: %s", outputDirName)
-	statusFilePath, err := detect.FindScanStatusFile(outputDirName)
+	log.Infof("finding scan status file from uniqueOutputDirName: %s", uniqueOutputDirName)
+	statusFilePath, err := detect.FindScanStatusFile(uniqueOutputDirName)
 	if err != nil {
 		return err
 	}
@@ -151,7 +159,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	location := locations[0]
 	log.Infof("location in Black Duck: %s", location)
 
-	outputRow := &ScanStatusTableValues{ImageName: image, BlackDuckURL: location}
+	outputRow := &ScanStatusTableValues{ImageName: fullImageName, BlackDuckURL: location}
 	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
 	// scanStatusTableValues <- outputRow
 
