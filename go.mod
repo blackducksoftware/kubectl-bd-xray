@@ -21,10 +21,10 @@ require (
 )
 
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible
-	// this repo's dependency is tied to the dependency of helm
+	// this repo's dependency is tied to the dependency of helm, mainly for go-autorest
 	// best place to look is here: https://github.com/helm/helm/blob/v3.3.0/go.mod
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.3.0
+	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible
 	k8s.io/api => k8s.io/api v0.18.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.18.4
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.18.4

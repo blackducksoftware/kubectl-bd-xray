@@ -6,13 +6,11 @@ import (
 	"os"
 	"path"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth" // required for auth, see: https://github.com/kubernetes/client-go/tree/v0.17.3/plugin/pkg/client/auth
@@ -55,17 +53,17 @@ func NewClient(kubeConfigPath string) (*Client, error) {
 	}, nil
 }
 
-func (kc *Client) ListNamespaces(ctx context.Context) (*v1.NamespaceList, error) {
+func (kc *Client) ListNamespaces(ctx context.Context) (*corev1.NamespaceList, error) {
 	namespaces, err := kc.Clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	return namespaces, errors.Wrapf(err, "unable to get namesapces")
 }
 
-func (kc *Client) GetNamespace(ctx context.Context, namespace string) (*v1.Namespace, error) {
+func (kc *Client) GetNamespace(ctx context.Context, namespace string) (*corev1.Namespace, error) {
 	ns, err := kc.Clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	return ns, errors.Wrapf(err, "unable to get namespace '%s'", namespace)
 }
 
-func (kc *Client) ListPods(ctx context.Context, namespace string, label string, value string) (*v1.PodList, error) {
+func (kc *Client) ListPods(ctx context.Context, namespace string, label string, value string) (*corev1.PodList, error) {
 	selector := fmt.Sprintf("%s=%s", label, value)
 	pods, err := kc.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector,

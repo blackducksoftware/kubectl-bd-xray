@@ -5,11 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 const (

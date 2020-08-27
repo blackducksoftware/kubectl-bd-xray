@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
+
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 type DockerCLIClient struct {

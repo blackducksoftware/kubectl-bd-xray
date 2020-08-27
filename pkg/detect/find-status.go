@@ -6,22 +6,23 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 func FindScanStatusFile(path string) (string, error) {
-	log.Infof("Searching for status file in %s", path)
-	_, directory_names, filenames, err := util.GetFilesAndDirectories(path)
+	log.Tracef("Searching for status file in %s", path)
+	_, directoryNames, fileNames, err := util.GetFilesAndDirectories(path)
 	if err != nil {
 		return "", err
 	}
-	for _, filename := range filenames {
+	for _, filename := range fileNames {
 		if filename == "status.json" {
 			return fmt.Sprintf("%s/status.json", path), nil
 		}
 	}
-	for _, dirname := range directory_names {
+	for _, dirname := range directoryNames {
 		filepath, err := FindScanStatusFile(fmt.Sprintf("%s/%s", path, dirname))
 		if err != nil {
 			return "", err

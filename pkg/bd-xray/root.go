@@ -7,49 +7,40 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 func InitAndExecute() {
-	rootCmd := setupRootCommand()
+	rootCmd := SetupRootCommand()
 	if err := errors.Wrapf(rootCmd.Execute(), "run bd-xray root command"); err != nil {
 		log.Fatalf("unable to run root command: %+v", err)
 		os.Exit(1)
 	}
 }
 
-type flagpole struct {
-	logLevel              string
-	genericCliConfigFlags *genericclioptions.ConfigFlags
+type RootFlags struct {
+	LogLevel              string
+	GenericCliConfigFlags *genericclioptions.ConfigFlags
 }
 
-func setupRootCommand() *cobra.Command {
-	flags := &flagpole{}
+func SetupRootCommand() *cobra.Command {
+	rootFlags := &RootFlags{}
 	var rootCmd = &cobra.Command{
 		Use:   "bd-xray",
-		Short: "Run a blackduck scan on an image",
-		Long:  `bd-xray`,
+		Short: "Run a Black Duck scan on an image",
+		Long:  `Run a Black Duck scan on an image`,
 		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRootCommand(flags)
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return util.SetUpLogger(rootFlags.LogLevel)
 		},
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&flags.logLevel, "verbosity", "v", "info", "log level; one of [info, debug, trace, warn, error, fatal, panic]")
+	rootCmd.PersistentFlags().StringVarP(&rootFlags.LogLevel, "verbosity", "v", "info", "log level; one of [info, debug, trace, warn, error, fatal, panic]")
 
-	flags.genericCliConfigFlags = genericclioptions.NewConfigFlags(false)
-	flags.genericCliConfigFlags.AddFlags(rootCmd.Flags())
+	rootFlags.GenericCliConfigFlags = genericclioptions.NewConfigFlags(false)
+	rootFlags.GenericCliConfigFlags.AddFlags(rootCmd.Flags())
 
 	rootCmd.AddCommand(SetupImageScanCommand())
 	return rootCmd
-}
-
-func runRootCommand(flags *flagpole) error {
-
-	logLevel, _ := log.ParseLevel(flags.logLevel)
-	log.SetLevel(logLevel)
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-
-	return nil
 }

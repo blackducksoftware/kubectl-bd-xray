@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/oklog/run"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 const (
@@ -87,23 +87,23 @@ func SetupImageScanCommand() *cobra.Command {
 			if err != nil {
 				log.Fatalf("FATAL ERROR: %+v", err)
 			}
-			log.Debugf("closing the output channel")
+			log.Tracef("closing the output channel")
 
 			close(outputChan)
 			// time.Sleep(10 * time.Second)
 
 			// TODO: Block on printerGoRoutine
 			select {
-			case msg1 := <-printingFinishedChannel:
-				fmt.Printf("Done: %+v", msg1)
+			case <-printingFinishedChannel:
+				log.Infof("All done!")
 			}
 		},
 	}
 
 	command.Flags().StringVar(&imageScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
-	command.Flags().StringVar(&imageScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Blackduck Server URL")
-	command.Flags().StringVar(&imageScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "BlackDuck API Token")
-	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. f not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
+	command.Flags().StringVar(&imageScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
+	command.Flags().StringVar(&imageScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
+	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
 	command.Flags().StringVar(&imageScanFlags.DetectVersionName, DetectVersionNameFlag, "", "An override for the version to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable version name. If that fails, the current date will be used.")
 
 	return command
@@ -125,7 +125,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	homeDir, _ := os.UserHomeDir()
 	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
 	outputDirName := fmt.Sprintf("%s/blackduck/%s", homeDir, util.GenerateRandomString(16))
-	log.Infof("output dir is: %s", outputDirName)
+	log.Tracef("output dir is: %s", outputDirName)
 	// actually scan
 	log.Tracef("starting image scan")
 	err := detectClient.RunImageScan(image, outputDirName, flagsToPassToDetect)
@@ -134,7 +134,7 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	}
 
 	// parsing output infos
-	log.Infof("finding scan status file with outputDirName: %s", outputDirName)
+	log.Infof("finding scan status file from outputDirName: %s", outputDirName)
 	statusFilePath, err := detect.FindScanStatusFile(outputDirName)
 	if err != nil {
 		return err
@@ -144,10 +144,11 @@ func RunImageScanCommand(ctx context.Context, image string, flagMap map[string]i
 	if err != nil {
 		return err
 	}
-	// log.Infof("")
 	locations := detect.FindLocationFromStatus(statusJSON)
 	if len(locations) == 0 {
-		return errors.Errorf("no location found")
+		// TODO: how to handle this better??
+		log.Warnf("no location found; either running offline mode or something went wrong")
+		return nil
 	}
 	location := locations[0]
 	log.Infof("location in Black Duck: %s", location)
