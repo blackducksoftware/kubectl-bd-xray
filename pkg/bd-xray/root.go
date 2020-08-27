@@ -42,5 +42,6 @@ func SetupRootCommand() *cobra.Command {
 	rootFlags.GenericCliConfigFlags.AddFlags(rootCmd.Flags())
 
 	rootCmd.AddCommand(SetupImageScanCommand())
+	rootCmd.AddCommand(SetupNamespaceScanCommand())
 	return rootCmd
 }

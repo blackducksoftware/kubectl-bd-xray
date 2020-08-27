@@ -103,7 +103,7 @@ func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outp
 	// c.DockerCLIClient.SaveDockerImage(imageName, unsquashedImageTarFilePath)
 
 	// SQUASHED
-	err = dockersquash.DockerSquash(imageName, squashedImageTarFilePath)
+	err = dockersquash.DockerSquash(fullImageName, squashedImageTarFilePath)
 	if err != nil {
 		return err
 	}

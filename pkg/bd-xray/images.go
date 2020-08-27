@@ -11,6 +11,7 @@ import (
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/kube"
 )
 
 const (
@@ -30,6 +31,96 @@ type ImageScanFlags struct {
 	LoggingLevel      string
 	// TODO: add how many scans to process simultaneously
 	// ConcurrencyLevel  string
+}
+
+type namespaceScanFlags struct {
+	DetectOfflineMode string
+	BlackDuckURL      string
+	BlackDuckToken    string
+	DetectProjectName string
+	DetectVersionName string
+	LoggingLevel      string
+	// TODO: add how many scans to process simultaneously
+	// ConcurrencyLevel  string
+}
+
+func SetupNamespaceScanCommand() *cobra.Command {
+	namespaceScanFlags := &namespaceScanFlags{}
+
+	flagMap := map[string]interface{}{
+		DetectOfflineModeFlag: &namespaceScanFlags.DetectOfflineMode,
+		BlackDuckURLFlag:      &namespaceScanFlags.BlackDuckURL,
+		BlackDuckTokenFlag:    &namespaceScanFlags.BlackDuckToken,
+		DetectProjectNameFlag: &namespaceScanFlags.DetectProjectName,
+		DetectVersionNameFlag: &namespaceScanFlags.DetectVersionName,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var goRoutineGroup run.Group
+	var printerGoRoutine run.Group
+	outputChan := make(chan *ScanStatusTableValues)
+	printingFinishedChannel := make(chan bool, 1)
+
+	command := &cobra.Command{
+		Use:   "namespace NAMESPACE_NAME...",
+		Short: "",
+		Long:  "",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			printerGoRoutine.Add(func() error {
+				PrintScanStatusTable(outputChan, printingFinishedChannel)
+				return nil
+			}, func(error) {
+				cancel()
+			})
+			var err error
+			var imageList []string
+
+			cli, _ := kube.NewDefaultClient()
+			imageList, err = cli.GetImagesFromNamespace(context.Background(), args[0])
+			
+			for _, image := range imageList {
+				image := image
+				log.Infof("Scanning image: %s", image)
+				goRoutineGroup.Add(func() error {
+					return RunImageScanCommand(ctx, image, flagMap, outputChan)
+				}, func(error) {
+					cancel()
+				})
+			}
+
+			log.Debugf("starting printer goroutine")
+
+			go printerGoRoutine.Run()
+
+			log.Debugf("starting scanning goroutines")
+
+			err = goRoutineGroup.Run()
+			if err != nil {
+				log.Fatalf("FATAL ERROR: %+v", err)
+			}
+			log.Tracef("closing the output channel")
+
+			close(outputChan)
+			// time.Sleep(10 * time.Second)
+
+			// TODO: Block on printerGoRoutine
+			select {
+			case <-printingFinishedChannel:
+				log.Infof("All done!")
+			}
+		},
+	}
+
+	command.Flags().StringVar(&namespaceScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
+	command.Flags().StringVar(&namespaceScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
+	command.Flags().StringVar(&namespaceScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
+	command.Flags().StringVar(&namespaceScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
+	command.Flags().StringVar(&namespaceScanFlags.DetectVersionName, DetectVersionNameFlag, "", "An override for the version to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable version name. If that fails, the current date will be used.")
+
+	return command
 }
 
 func SetupImageScanCommand() *cobra.Command {
@@ -63,8 +154,13 @@ func SetupImageScanCommand() *cobra.Command {
 			}, func(error) {
 				cancel()
 			})
+			var err error
+			var imageList []string
 
-			for _, image := range args {
+			cli, _ := kube.NewDefaultClient()
+			imageList, err = cli.GetImagesFromNamespace(context.Background(), "local-path-storage")
+
+			for _, image := range imageList {
 				image := image
 				log.Infof("Scanning image: %s", image)
 				goRoutineGroup.Add(func() error {
@@ -75,7 +171,6 @@ func SetupImageScanCommand() *cobra.Command {
 			}
 
 			log.Debugf("starting printer goroutine")
-			var err error
 
 			go printerGoRoutine.Run()
 
@@ -107,6 +202,8 @@ func SetupImageScanCommand() *cobra.Command {
 	return command
 }
 
+
+
 func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
 	var err error
 
@@ -122,6 +219,11 @@ func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[
 		flagsToPassToDetect += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
 	}
 
+	err = detectClient.DockerCLIClient.PullDockerImage(fullImageName)
+	if err != nil {
+		return err
+	}
+
 	// uniqueOutputDirName := fmt.Sprintf("%s/%s_%s", detect.DefaultDetectBlackduckDirectory, image, util.GenerateRandomString(16))
 	imageName := util.ParseImageName(fullImageName)
 	imageTag := util.ParseImageTag(fullImageName)
@@ -134,6 +236,7 @@ func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[
 	log.Tracef("output dir is: %s", uniqueOutputDirName)
 	// actually scan
 	log.Tracef("starting image scan")
+
 	err = detectClient.RunImageScan(fullImageName, imageName, imageTag, imageSha, uniqueOutputDirName, flagsToPassToDetect)
 	if err != nil {
 		return err

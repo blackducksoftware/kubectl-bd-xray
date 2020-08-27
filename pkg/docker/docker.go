@@ -96,6 +96,13 @@ func (cli *DockerCLIClient) SaveDockerImageAsTarGz(image, filePath string) error
 	return err
 }
 
+func (cli *DockerCLIClient) PullDockerImage(image string) error {
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker pull %s", image))
+	var err error
+	_, err = util.RunCommand(cmd)
+	return err
+}
+
 // func SquashDockerImage() {
 
 // }
