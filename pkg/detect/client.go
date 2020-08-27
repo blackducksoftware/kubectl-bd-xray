@@ -90,26 +90,50 @@ func (c *Client) DownloadDetectIfNotExists() error {
 }
 
 func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags string) error {
-	imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
-	c.DockerCLIClient.SaveDockerImage(imageName, imageTarFilePath)
+
+	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
+	// imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
+	// imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", util.GenerateRandomString(16))
+	imageTarFilePath := fmt.Sprintf("unsquashed-alpine.tar")
+	log.Tracef("image tar file path: %s", imageTarFilePath)
+
+	// c.DockerCLIClient.SaveDockerImage(imageName, imageTarFilePath)
 
 	// TODO: according to docs here: https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/650969090/Diagnostic+Mode --diagnosticExtended flag means logging is set to debug and cleanup is set to false by default, however, it seems --detect.cleanup=false is needed in order to keep the status.json file.
 	// --logging.level.com.synopsys.integration=OFF
 	// --detect.cleanup=false
 	defaultGlobalFlags := fmt.Sprintf("--diagnosticExtended --detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
+	log.Tracef("default global flags: %s", defaultGlobalFlags)
 	// TODO: figure out concurrent docker-inspector scans
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetDetectDefaultScanFlags(imageName), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	log.Tracef("command is: %s", cmd)
+
 	var err error
 	// NOTE: by design, we explicitly don't print out the detect output
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
-	// err = util.RunCommandAndCaptureProgress(cmd)
-	_, err = util.RunCommand(cmd)
+	if log.GetLevel() == log.TraceLevel {
+		// if trace enabled, allow capturing progress
+		log.Tracef("since trace level is enabled, will capture progress as command executes")
+		err = util.RunCommandAndCaptureProgress(cmd)
+	} else {
+		log.Tracef("output will be printed at the end")
+		// otherwise, just print at the end
+		_, err = util.RunCommand(cmd)
+	}
 	return err
 }
 
 // GetDetectDefaultScanFlags: this is the default scan that detect invokes (which is just docker-inspector + signature scanner)
 func (c *Client) GetDetectDefaultScanFlags(imageName string) string {
 	return fmt.Sprintf("--detect.docker.image=%s", imageName)
+}
+
+func (c *Client) GetConcurrentDockerInspectorScanFlags() string {
+	// passthrough flag makes docker-inspector be able to run multiple scans
+	return fmt.Sprintf("--detect.docker.passthrough.imageinspector.cleanup.inspector.container=false")
 }
 
 // GetDockerInspectorScanOnlyFlags docker-inspector only
@@ -140,7 +164,23 @@ func (c *Client) GetAllScanFlags(imageTarFilePath, imageName, imageVersion strin
 	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
 }
 
+// GetAllConcurrentUnsquashedScanFlags docker-inspector + signature + binary
+func (c *Client) GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName, imageVersion string) string {
+	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
+	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
+}
+
+func (c *Client) GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, imageName string) string {
+	// TODO: need to squash for binary scan
+	// TODO: technically we should be able to use squashed image path from docker-inspector
+	// TODO: but then we have to scan serially
+
+	return fmt.Sprintf("%s --detect.tools=DOCKER,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName))
+}
+
 func (c *Client) GetProjectNameFlag(projectName string) string {
+	// TODO: replace random string with a proper project name
+	projectName = util.GenerateRandomString(16)
 	return fmt.Sprintf("--detect.project.name=%s", projectName)
 }
 

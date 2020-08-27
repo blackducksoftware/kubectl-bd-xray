@@ -38,10 +38,18 @@ func (cli *DockerCLIClient) ListImages(reference string) ([]types.ImageSummary, 
 	return images, errors.Wrapf(err, "unable to list images")
 }
 
+// SaveDockerImage creates a tar as an un-squashed image
 func (cli *DockerCLIClient) SaveDockerImage(image, filePath string) error {
 	// TODO: use golang client instead of docker
 	// cli.DockerClient.ImageSave()
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker save -o %s %s", filePath, image))
+	var err error
+	_, err = util.RunCommand(cmd)
+	return err
+}
+
+func (cli *DockerCLIClient) SaveDockerImageAsTarGz(image, filePath string) error {
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c docker save %s | gzip > %s.tar.gz", image, filePath))
 	var err error
 	_, err = util.RunCommand(cmd)
 	return err
