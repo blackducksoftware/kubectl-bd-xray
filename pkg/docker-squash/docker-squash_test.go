@@ -2,9 +2,8 @@ package dockersquash
 
 import "testing"
 
-func TestDownloadDockerSquash(t *testing.T) {
-	cli := NewDefaultClient()
-	err := cli.DownloadDockerSquash()
+func TestSquashImage(t *testing.T) {
+	err := DockerSquash("postgres:9.6.17-alpine")
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
