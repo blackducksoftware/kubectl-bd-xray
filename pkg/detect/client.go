@@ -93,16 +93,17 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 
 	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
 	// imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
-	// imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", util.GenerateRandomString(16))
-	imageTarFilePath := fmt.Sprintf("unsquashed-alpine.tar")
+	imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", util.GenerateRandomString(16))
+	// imageTarFilePath := fmt.Sprintf("unsquashed-alpine.tar")
 	log.Tracef("image tar file path: %s", imageTarFilePath)
 
 	// c.DockerCLIClient.SaveDockerImage(imageName, imageTarFilePath)
 
 	// TODO: according to docs here: https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/650969090/Diagnostic+Mode --diagnosticExtended flag means logging is set to debug and cleanup is set to false by default, however, it seems --detect.cleanup=false is needed in order to keep the status.json file.
+	// --diagnosticExtended
 	// --logging.level.com.synopsys.integration=OFF
 	// --detect.cleanup=false
-	defaultGlobalFlags := fmt.Sprintf("--diagnosticExtended --detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
+	defaultGlobalFlags := fmt.Sprintf("--detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	log.Tracef("default global flags: %s", defaultGlobalFlags)
 	// TODO: figure out concurrent docker-inspector scans
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetDetectDefaultScanFlags(imageName), defaultGlobalFlags, userSpecifiedDetectFlags))

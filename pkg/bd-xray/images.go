@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aquasecurity/fanal/image/daemon"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/oklog/run"
 	log "github.com/sirupsen/logrus"
@@ -44,7 +46,6 @@ func SetupImageScanCommand() *cobra.Command {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	// var mainGroup run.Group
 	var goRoutineGroup run.Group
 	var printerGoRoutine run.Group
 	outputChan := make(chan *ScanStatusTableValues)
@@ -58,6 +59,32 @@ func SetupImageScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+
+			// dockerCLIClient, err := docker.NewCliClient()
+			// util.DoOrDie(err)
+
+			for _, image := range args {
+				log.Infof("image: %s", image)
+				ref, err := name.ParseReference(image)
+				util.DoOrDie(err)
+				log.Infof("reference: %s", ref)
+
+				// imageSummary, _ := dockerCLIClient.ListImages(context.TODO(), ref.Name())
+				// for _, x := range imageSummary {
+				// 	log.Infof("ID: %s", x.ID)
+				// }
+
+				// dockerCLIClient.GetDockerImage(context.TODO(), ref)
+
+				img, cleanup, _ := daemon.Image(ref)
+				defer cleanup()
+				log.Infof("image: %s", img)
+
+				cfgName, _ := img.ConfigName()
+				util.DoOrDie(err)
+				shaOfImage := cfgName.Hex
+				log.Infof("image digest: %s", shaOfImage)
+			}
 
 			printerGoRoutine.Add(func() error {
 				PrintScanStatusTable(outputChan, printingFinishedChannel)

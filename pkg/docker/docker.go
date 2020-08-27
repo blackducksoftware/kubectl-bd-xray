@@ -7,7 +7,9 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
@@ -24,18 +26,29 @@ func NewCliClient() (*DockerCLIClient, error) {
 	return &DockerCLIClient{DockerClient: cli}, nil
 }
 
-func (cli *DockerCLIClient) ListImages(reference string) ([]types.ImageSummary, error) {
+func (cli *DockerCLIClient) ListImages(ctx context.Context, reference string) ([]types.ImageSummary, error) {
 	// supported filters: https://docs.docker.com/engine/reference/commandline/images/#filtering
 	var filterArgs filters.Args
 	if reference != "" {
 		filterArgs = filters.NewArgs(filters.Arg("reference", reference))
 		// fmt.Sprintf("%s:%s", args.Repository, args.Tag)))
 	}
-	images, err := cli.DockerClient.ImageList(context.TODO(), types.ImageListOptions{
+	log.Tracef("filter arguments for reference %s: %s", reference, filterArgs)
+	images, err := cli.DockerClient.ImageList(ctx, types.ImageListOptions{
 		All:     false,
 		Filters: filterArgs,
 	})
+
 	return images, errors.Wrapf(err, "unable to list images")
+}
+
+// TODO: not working
+func (cli *DockerCLIClient) GetDockerImage(ctx context.Context, ref name.Reference) error {
+
+	imageInspect, _, err := cli.DockerClient.ImageInspectWithRaw(ctx, ref.Name())
+	log.Infof("imageInspect looks like: %s", imageInspect)
+	log.Infof("\n\n id looks: %s\n\n", imageInspect.ID)
+	return err
 }
 
 // SaveDockerImage creates a tar as an un-squashed image

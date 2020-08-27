@@ -3,12 +3,14 @@ module github.com/blackducksoftware/kubectl-bd-xray
 go 1.15
 
 require (
+	github.com/aquasecurity/fanal v0.0.0-20200820074632-6de62ef86882
 	github.com/docker/docker v1.4.2-0.20200203170920-46ec8731fbce
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-resty/resty/v2 v2.3.0
+	github.com/google/go-containerregistry v0.1.2
 	github.com/imdario/mergo v0.3.11
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
-	github.com/oklog/run v1.1.0
+	github.com/oklog/run v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
@@ -18,6 +20,7 @@ require (
 	k8s.io/cli-runtime v0.18.8
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/klog v1.0.0
+	rsc.io/letsencrypt v0.0.3 // indirect
 )
 
 replace (
