@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
-	dockersquash "github.com/blackducksoftware/kubectl-bd-xray/pkg/docker-squash"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
@@ -97,16 +96,18 @@ func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outp
 	uniqueString := fmt.Sprintf("%s_%s_%s", imageName, imageTag, imageSha)
 	unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueString)
 	squashedImageTarFilePath := fmt.Sprintf("squashed_%s.tar", uniqueString)
-	log.Tracef("image tar file path: %s", unsquashedImageTarFilePath)
+	log.Tracef("unsquashed image tar file path: %s", unsquashedImageTarFilePath)
+	log.Tracef("squashed image tar file path: %s", squashedImageTarFilePath)
 
 	// UNSQUASHED
 	// c.DockerCLIClient.SaveDockerImage(imageName, unsquashedImageTarFilePath)
 
 	// SQUASHED
-	err = dockersquash.DockerSquash(fullImageName, squashedImageTarFilePath)
-	if err != nil {
-		return err
-	}
+	log.Infof("full image scan: %s", fullImageName)
+	// err = dockersquash.DockerSquash(fullImageName, squashedImageTarFilePath)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// TODO: according to docs here: https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/650969090/Diagnostic+Mode --diagnosticExtended flag means logging is set to debug and cleanup is set to false by default, however, it seems --detect.cleanup=false is needed in order to keep the status.json file.
 	// --diagnosticExtended
@@ -115,11 +116,11 @@ func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outp
 	defaultGlobalFlags := fmt.Sprintf("--detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	log.Tracef("default global flags: %s", defaultGlobalFlags)
 	// TODO: figure out concurrent docker-inspector scans
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetDetectDefaultScanFlags(imageName), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s %s", c.DetectPath, c.GetDetectDefaultScanFlags(imageName), c.GetConcurrentDockerInspectorScanFlags(), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha), defaultGlobalFlags, userSpecifiedDetectFlags))
 	log.Tracef("command is: %s", cmd)
 
 	// NOTE: by design, we explicitly don't print out the detect output

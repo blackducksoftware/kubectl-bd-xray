@@ -11,7 +11,6 @@ import (
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/kube"
 )
 
 const (
@@ -33,96 +32,6 @@ type ImageScanFlags struct {
 	// ConcurrencyLevel  string
 }
 
-type namespaceScanFlags struct {
-	DetectOfflineMode string
-	BlackDuckURL      string
-	BlackDuckToken    string
-	DetectProjectName string
-	DetectVersionName string
-	LoggingLevel      string
-	// TODO: add how many scans to process simultaneously
-	// ConcurrencyLevel  string
-}
-
-func SetupNamespaceScanCommand() *cobra.Command {
-	namespaceScanFlags := &namespaceScanFlags{}
-
-	flagMap := map[string]interface{}{
-		DetectOfflineModeFlag: &namespaceScanFlags.DetectOfflineMode,
-		BlackDuckURLFlag:      &namespaceScanFlags.BlackDuckURL,
-		BlackDuckTokenFlag:    &namespaceScanFlags.BlackDuckToken,
-		DetectProjectNameFlag: &namespaceScanFlags.DetectProjectName,
-		DetectVersionNameFlag: &namespaceScanFlags.DetectVersionName,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var goRoutineGroup run.Group
-	var printerGoRoutine run.Group
-	outputChan := make(chan *ScanStatusTableValues)
-	printingFinishedChannel := make(chan bool, 1)
-
-	command := &cobra.Command{
-		Use:   "namespace NAMESPACE_NAME...",
-		Short: "",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			printerGoRoutine.Add(func() error {
-				PrintScanStatusTable(outputChan, printingFinishedChannel)
-				return nil
-			}, func(error) {
-				cancel()
-			})
-			var err error
-			var imageList []string
-
-			cli, _ := kube.NewDefaultClient()
-			imageList, err = cli.GetImagesFromNamespace(context.Background(), args[0])
-			
-			for _, image := range imageList {
-				image := image
-				log.Infof("Scanning image: %s", image)
-				goRoutineGroup.Add(func() error {
-					return RunImageScanCommand(ctx, image, flagMap, outputChan)
-				}, func(error) {
-					cancel()
-				})
-			}
-
-			log.Debugf("starting printer goroutine")
-
-			go printerGoRoutine.Run()
-
-			log.Debugf("starting scanning goroutines")
-
-			err = goRoutineGroup.Run()
-			if err != nil {
-				log.Fatalf("FATAL ERROR: %+v", err)
-			}
-			log.Tracef("closing the output channel")
-
-			close(outputChan)
-			// time.Sleep(10 * time.Second)
-
-			// TODO: Block on printerGoRoutine
-			select {
-			case <-printingFinishedChannel:
-				log.Infof("All done!")
-			}
-		},
-	}
-
-	command.Flags().StringVar(&namespaceScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
-	command.Flags().StringVar(&namespaceScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
-	command.Flags().StringVar(&namespaceScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
-	command.Flags().StringVar(&namespaceScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
-	command.Flags().StringVar(&namespaceScanFlags.DetectVersionName, DetectVersionNameFlag, "", "An override for the version to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable version name. If that fails, the current date will be used.")
-
-	return command
-}
-
 func SetupImageScanCommand() *cobra.Command {
 	imageScanFlags := &ImageScanFlags{}
 
@@ -135,57 +44,16 @@ func SetupImageScanCommand() *cobra.Command {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var goRoutineGroup run.Group
-	var printerGoRoutine run.Group
-	outputChan := make(chan *ScanStatusTableValues)
-	printingFinishedChannel := make(chan bool, 1)
 
 	command := &cobra.Command{
-		Use:   "image DOCKER_IMAGE...",
-		Short: "",
-		Long:  "",
+		Use:   "images DOCKER_IMAGE...",
+		Short: "scan multiple images",
+		Long:  "scan multiple images",
 		Args: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			printerGoRoutine.Add(func() error {
-				PrintScanStatusTable(outputChan, printingFinishedChannel)
-				return nil
-			}, func(error) {
-				cancel()
-			})
-			var err error
-
-			for _, image := range args {
-				image := image
-				log.Infof("Scanning image: %s", image)
-				goRoutineGroup.Add(func() error {
-					return RunImageScanCommand(ctx, image, flagMap, outputChan)
-				}, func(error) {
-					cancel()
-				})
-			}
-
-			log.Debugf("starting printer goroutine")
-
-			go printerGoRoutine.Run()
-
-			log.Debugf("starting scanning goroutines")
-
-			err = goRoutineGroup.Run()
-			if err != nil {
-				log.Fatalf("FATAL ERROR: %+v", err)
-			}
-			log.Tracef("closing the output channel")
-
-			close(outputChan)
-			// time.Sleep(10 * time.Second)
-
-			// TODO: Block on printerGoRoutine
-			select {
-			case <-printingFinishedChannel:
-				log.Infof("All done!")
-			}
+			util.DoOrDie(EndToEndRunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, flagMap))
 		},
 	}
 
@@ -198,7 +66,72 @@ func SetupImageScanCommand() *cobra.Command {
 	return command
 }
 
+func EndToEndRunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, flagMap map[string]interface{}) error {
+	var err error
 
+	scanStatusTableValues := make(chan *ScanStatusTableValues)
+	doneChan := make(chan bool, 1)
+
+	err = RunPrinterConcurrently(cancellationFunc, scanStatusTableValues, doneChan)
+	if err != nil {
+		return err
+	}
+
+	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, flagMap, scanStatusTableValues)
+	if err != nil {
+		return err
+	}
+
+	BlockOnDoneChan(doneChan)
+	return nil
+}
+
+func RunPrinterConcurrently(cancellationFunc context.CancelFunc, scanStatusTableValues <-chan *ScanStatusTableValues, doneChan chan<- bool) error {
+	var printerGoRoutine run.Group
+	printerGoRoutine.Add(func() error {
+		PrintScanStatusTable(scanStatusTableValues, doneChan)
+		return nil
+	}, func(error) {
+		cancellationFunc()
+	})
+	log.Tracef("starting printer goroutine")
+	go printerGoRoutine.Run()
+	return nil
+}
+
+func BlockOnDoneChan(doneChan chan bool) {
+	log.Tracef("blocking on done channel")
+	select {
+	case <-doneChan:
+		log.Infof("All done!")
+	}
+}
+
+func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
+	var err error
+
+	var goRoutineGroup run.Group
+
+	for _, image := range imageList {
+		image := image
+		log.Infof("Scanning image: %s", image)
+		goRoutineGroup.Add(func() error {
+			return RunImageScanCommand(ctx, image, flagMap, scanStatusTableValues)
+		}, func(error) {
+			cancellationFunc()
+		})
+	}
+
+	log.Tracef("starting scanning goroutines")
+	err = goRoutineGroup.Run()
+	if err != nil {
+		log.Fatalf("FATAL ERROR: %+v", err)
+	}
+
+	log.Tracef("closing the output channel")
+	close(scanStatusTableValues)
+	return err
+}
 
 func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
 	var err error
