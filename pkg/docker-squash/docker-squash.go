@@ -2,26 +2,47 @@ package dockersquash
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
-	"os/exec"
 )
 
-func DockerSquash(imageName, tagName string) error {
+const DockerSquashPath = "docker-squash"
+
+func DockerSquash(imageName, outputFilePath string) error {
 	// Ensure docker-squash is installed
-	command := "pip install docker-squash"
-	cmd := exec.Command("sh", "-c", command)
-	_, err := util.RunCommand(cmd)
+	err := DownloadDockerSquashIfNotInstalled()
 	if err != nil {
 		return err
 	}
 
 	// Squash the image
-	command = fmt.Sprintf("docker-squash -t %s %s", tagName, imageName)
-	cmd = exec.Command("sh", "-c", command)
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker-squash %s --output-path %s", imageName, outputFilePath))
 	_, err = util.RunCommand(cmd)
-	if err != nil {
-		return err
-	}
+	return err
+}
 
-	return nil
+// TODO: remove dependency on python
+func PipInstallDockerSquash() error {
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("pip install docker-squash"))
+	var err error
+	_, err = util.RunCommand(cmd)
+	return err
+}
+
+func DownloadDockerSquashIfNotInstalled() error {
+	if _, err := os.Stat(DockerSquashPath); err == nil {
+		log.Debugf("detect found at %s, not downloading again, running sync recommended", DockerSquashPath)
+		// TODO: sync to latest version if possible
+		return nil
+	} else if os.IsNotExist(err) {
+		log.Debugf("%s not found at %s, downloading ...", DockerSquashPath, DockerSquashPath)
+		// if docker-squash not found at path, then download a fresh copy
+		return PipInstallDockerSquash()
+	} else {
+		return errors.Wrapf(err, "unable to check if file %s exists", DockerSquashPath)
+	}
 }

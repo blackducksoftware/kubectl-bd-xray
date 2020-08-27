@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
+	dockersquash "github.com/blackducksoftware/kubectl-bd-xray/pkg/docker-squash"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
@@ -91,13 +92,22 @@ func (c *Client) DownloadDetectIfNotExists() error {
 
 func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags string) error {
 
+	var err error
 	// TODO: replace random string with still a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
-	// imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
-	imageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", util.GenerateRandomString(16))
-	// imageTarFilePath := fmt.Sprintf("unsquashed-alpine.tar")
-	log.Tracef("image tar file path: %s", imageTarFilePath)
+	// unsquashedImageTarFilePath := fmt.Sprintf("unsquashed-%s.tar", imageName)
+	uniqueString := util.GenerateRandomString(16)
+	unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueString)
+	squashedImageTarFilePath := fmt.Sprintf("squashed_%s.tar", uniqueString)
+	log.Tracef("image tar file path: %s", unsquashedImageTarFilePath)
 
-	// c.DockerCLIClient.SaveDockerImage(imageName, imageTarFilePath)
+	// UNSQUASHED
+	// c.DockerCLIClient.SaveDockerImage(imageName, unsquashedImageTarFilePath)
+
+	// SQUASHED
+	err = dockersquash.DockerSquash(imageName, squashedImageTarFilePath)
+	if err != nil {
+		return err
+	}
 
 	// TODO: according to docs here: https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/650969090/Diagnostic+Mode --diagnosticExtended flag means logging is set to debug and cleanup is set to false by default, however, it seems --detect.cleanup=false is needed in order to keep the status.json file.
 	// --diagnosticExtended
@@ -107,12 +117,12 @@ func (c *Client) RunImageScan(imageName, outputDirName, userSpecifiedDetectFlags
 	log.Tracef("default global flags: %s", defaultGlobalFlags)
 	// TODO: figure out concurrent docker-inspector scans
 	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetDetectDefaultScanFlags(imageName), defaultGlobalFlags, userSpecifiedDetectFlags))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, imageName), defaultGlobalFlags, userSpecifiedDetectFlags))
 	log.Tracef("command is: %s", cmd)
 
-	var err error
 	// NOTE: by design, we explicitly don't print out the detect output
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
 	if log.GetLevel() == log.TraceLevel {
@@ -172,11 +182,7 @@ func (c *Client) GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName
 }
 
 func (c *Client) GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, imageName string) string {
-	// TODO: need to squash for binary scan
-	// TODO: technically we should be able to use squashed image path from docker-inspector
-	// TODO: but then we have to scan serially
-
-	return fmt.Sprintf("%s --detect.tools=DOCKER,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName))
+	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName))
 }
 
 func (c *Client) GetProjectNameFlag(projectName string) string {
