@@ -69,6 +69,13 @@ func SetupImageScanCommand() *cobra.Command {
 func EndToEndRunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, flagMap map[string]interface{}) error {
 	var err error
 
+	// first setup docker-inspector
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c $GOPATH/src/github.com/blackducksoftware/kubectl-bd-xray/pkg/detect/runDetectAgainstDockerServices.sh"))
+	_, err = util.RunCommand(cmd)
+	if err != nil {
+		return err
+	}
+
 	scanStatusTableValues := make(chan *ScanStatusTableValues)
 	doneChan := make(chan bool, 1)
 
