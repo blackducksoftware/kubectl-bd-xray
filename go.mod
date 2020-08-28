@@ -10,26 +10,24 @@ require (
 	github.com/google/go-containerregistry v0.1.2
 	github.com/imdario/mergo v0.3.11
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
-	github.com/oklog/run v1.0.0
+	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	helm.sh/helm/v3 v3.3.0
-	k8s.io/api v0.18.8
-	k8s.io/apimachinery v0.18.8
-	k8s.io/cli-runtime v0.18.8
+	k8s.io/api v0.19.0
+	k8s.io/apimachinery v0.19.0
+	k8s.io/cli-runtime v0.19.0
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/klog v1.0.0
 	rsc.io/letsencrypt v0.0.3 // indirect
 )
 
+// this repo's dependency is tied to the dependency of helm, mainly for go-autorest
+// best place to look is here: https://github.com/helm/helm/blob/v3.3.0/go.mod
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible
-	// this repo's dependency is tied to the dependency of helm, mainly for go-autorest
-	// best place to look is here: https://github.com/helm/helm/blob/v3.3.0/go.mod
-	helm.sh/helm/v3 => helm.sh/helm/v3 v3.3.0
-	k8s.io/api => k8s.io/api v0.18.4
-	k8s.io/apimachinery => k8s.io/apimachinery v0.18.4
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.18.4
-	k8s.io/client-go => k8s.io/client-go v0.18.4
+	k8s.io/api => k8s.io/api v0.19.0
+	k8s.io/apimachinery => k8s.io/apimachinery v0.19.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.19.0
+	k8s.io/client-go => k8s.io/client-go v0.19.0
 )
