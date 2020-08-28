@@ -46,7 +46,6 @@ type Status struct {
 	} `json:"status"`
 	Issues  []interface{} `json:"issues"`
 	Results []struct {
-		// TODO: this is what we want
 		Location string `json:"location"`
 		Message  string `json:"message"`
 	} `json:"results"`

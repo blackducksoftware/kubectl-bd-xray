@@ -57,7 +57,7 @@ func SetupImageScanCommand() *cobra.Command {
 	command.Flags().StringVar(&imageScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
 	command.Flags().StringVar(&imageScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
 	command.Flags().StringVar(&imageScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
-	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
+	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created for each image")
 
 	return command
 }
@@ -165,7 +165,7 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	// if err != nil {
 	// 	return err
 	// }
-	// a unique string, but something that's human readable, i.e.: TODO: TIMESTAMP_NAME_TAG_RANDOMSTRING
+	// a unique string, but something that's human readable, i.e.: TIMESTAMP_NAME_TAG_RANDOMSTRING
 	timestampUniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s_%s_%s", time.Now().Format("20060102150405"), imageName, imageTag, util.GenerateRandomString(16)))
 	uniqueOutputDirName := fmt.Sprintf("%s/%s", detect.DefaultDetectBlackduckDirectory, timestampUniqueSanitizedString)
 	log.Tracef("output dir is: %s", uniqueOutputDirName)

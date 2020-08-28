@@ -13,7 +13,7 @@ type NamespaceScanFlags struct {
 	DetectOfflineMode string
 	BlackDuckURL      string
 	BlackDuckToken    string
-	// DetectProjectName string
+	DetectProjectName string
 	// TODO: add how many scans to process simultaneously
 	// ConcurrencyLevel  string
 }
@@ -37,20 +37,19 @@ func SetupNamespaceScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, detectPassThroughFlagsMap))
+			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, namespaceScanFlags, detectPassThroughFlagsMap))
 		},
 	}
 
 	command.Flags().StringVar(&namespaceScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
 	command.Flags().StringVar(&namespaceScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
 	command.Flags().StringVar(&namespaceScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
-	// TODO: by default, this would be the namespace, but maybe let user override here?
-	// command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
+	command.Flags().StringVar(&namespaceScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created with namespace name and image name and tag will be passed as version.")
 
 	return command
 }
 
-func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, detectPassThroughFlagsMap map[string]interface{}) error {
+func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, namespaceScanFlags *NamespaceScanFlags, detectPassThroughFlagsMap map[string]interface{}) error {
 	var err error
 	var imageList []string
 
@@ -63,5 +62,13 @@ func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellation
 		return err
 	}
 
-	return RunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, detectPassThroughFlagsMap, namespace)
+	var projectName string
+	var userSuppliedProjectName = namespaceScanFlags.DetectProjectName
+	if 0 == len(userSuppliedProjectName) {
+		projectName = namespace
+	} else {
+		projectName = userSuppliedProjectName
+	}
+
+	return RunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, detectPassThroughFlagsMap, projectName)
 }
