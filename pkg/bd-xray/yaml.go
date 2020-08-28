@@ -3,8 +3,8 @@ package bd_xray
 import (
 	"context"
 
-	"path/filepath"
 	"github.com/spf13/cobra"
+	"path/filepath"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/yaml"
