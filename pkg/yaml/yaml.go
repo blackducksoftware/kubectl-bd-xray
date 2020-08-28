@@ -3,8 +3,8 @@ package yaml
 import (
 	"bufio"
 	"os"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // grepping for image in yaml
@@ -34,16 +34,15 @@ func GetImageFromYaml(filename string) ([]string, error) {
 	return list, err
 }
 
-
-func GetImageFromYamlString(templateOutput string) ([]string) {
+func GetImageFromYamlString(templateOutput string) []string {
 	list := []string{}
 
-	linesToProcess := strings.Split(templateOutput,"\n")
+	linesToProcess := strings.Split(templateOutput, "\n")
 	repoRegexp := regexp.MustCompile(`image: `)
 	for _, line := range linesToProcess {
 		repoSubstringSubmatch := repoRegexp.FindStringSubmatch(line)
 		if len(repoSubstringSubmatch) > 0 {
-			
+
 			imageString := strings.TrimSpace(line)
 			imageString = strings.TrimPrefix(imageString, "image:")
 			imageString = strings.TrimSpace(imageString)

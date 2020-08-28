@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/yaml"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/helm"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/yaml"
 )
 
 func SetupHelmScanCommand() *cobra.Command {

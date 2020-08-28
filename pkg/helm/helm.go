@@ -1,8 +1,8 @@
 package helm
 
 import (
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 	"fmt"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
 func TemplateChart(chartURL string) (string, error) {

@@ -15,9 +15,11 @@ import (
 
 const (
 	// TODO: maybe makes sense to put detect script under ~/blackduck as well (other than the bootstrap problem)
-	DefaultDetectDownloadFilePath            = "./detect.sh"
-	DefaultDetectURL                         = "https://detect.synopsys.com/detect.sh"
-	WindowsDetectURL                         = "https://detect.synopsys.com/detect.ps1"
+	DefaultDetectDownloadFilePath = "./detect.sh"
+	DefaultDetectURL              = "https://detect.synopsys.com/detect.sh"
+	WindowsDetectURL              = "https://detect.synopsys.com/detect.ps1"
+	// Modified from here: https://github.com/blackducksoftware/blackduck-docker-inspector/blob/9.1.1/deployment/docker/runDetectAgainstDockerServices/setup.sh
+	// TODO: keep sync'd to runDetectAgainstDockerServices.sh and/or delete that bash script
 	RunDetectAgainstDockerServicesBashScript = `
 #!/bin/bash
 
@@ -269,6 +271,7 @@ func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
 }
 
 // SetupPersistentDockerInspectorServices: sets up persistent docker services on host; goes together with GetPersistentDockerInspectorServicesFlags
+// https://github.com/blackducksoftware/blackduck-docker-inspector/blob/9.1.1/deployment/docker/runDetectAgainstDockerServices/setup.sh
 func (c *Client) SetupPersistentDockerInspectorServices() error {
 	var err error
 	// first setup docker-inspector

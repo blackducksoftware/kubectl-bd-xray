@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/registries"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/remediation"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
@@ -81,15 +83,15 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 		defer detectClient.StopAndCleanupPersistentDockerInspectorServices()
 	}
 
-	scanStatusTableValues := make(chan *ScanStatusTableValues)
+	scanStatusRowChan := make(chan *ScanStatusRow)
 	doneChan := make(chan bool, 1)
 
-	err = RunPrinterConcurrently(cancellationFunc, scanStatusTableValues, doneChan)
+	err = RunPrinterConcurrently(cancellationFunc, scanStatusRowChan, doneChan)
 	if err != nil {
 		return err
 	}
 
-	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, detectClient, imageList, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
+	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, detectClient, imageList, detectPassThroughFlagsMap, scanStatusRowChan, projectName)
 	if err != nil {
 		return err
 	}
@@ -99,7 +101,7 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 	return nil
 }
 
-func RunPrinterConcurrently(cancellationFunc context.CancelFunc, scanStatusTableValues <-chan *ScanStatusTableValues, doneChan chan<- bool) error {
+func RunPrinterConcurrently(cancellationFunc context.CancelFunc, scanStatusTableValues <-chan *ScanStatusRow, doneChan chan<- bool) error {
 	var printerGoRoutine run.Group
 	printerGoRoutine.Add(func() error {
 		PrintScanStatusTable(scanStatusTableValues, doneChan)
@@ -120,7 +122,7 @@ func BlockOnDoneChan(doneChan chan bool) {
 	}
 }
 
-func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, detectClient *detect.Client, imageList []string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
+func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, detectClient *detect.Client, imageList []string, detectPassThroughFlagsMap map[string]interface{}, scanStatusRowChan chan *ScanStatusRow, projectName string) error {
 	var err error
 
 	var goRoutineGroup run.Group
@@ -128,8 +130,9 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 	for _, image := range imageList {
 		image := image
 		log.Infof("Scanning image: %s", image)
+		scanStatusRow := &ScanStatusRow{}
 		goRoutineGroup.Add(func() error {
-			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
+			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, scanStatusRow, scanStatusRowChan, projectName)
 		}, func(error) {
 			cancellationFunc()
 		})
@@ -142,13 +145,13 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 	}
 
 	log.Tracef("closing the output channel")
-	close(scanStatusTableValues)
+	close(scanStatusRowChan)
 	return err
 }
 
 // RunImageScanCommand
 // https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631374044/Detect+Properties
-func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
+func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, scanStatusRow *ScanStatusRow, scanStatusRowChan chan *ScanStatusRow, projectName string) error {
 
 	var err error
 
@@ -202,40 +205,56 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	location := locations[0]
 	log.Infof("location in Black Duck: %s", location)
 
+	// fill in all the rows
+	scanStatusRow.ImageName = imageName
+	scanStatusRow.ImageTag = imageTag
+	scanStatusRow.BlackDuckURL = location
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
-	outputRow := &ScanStatusTableValues{ImageName: fullImageName, BlackDuckURL: location}
-	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
-	// scanStatusTableValues <- outputRow
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case scanStatusTableValues <- outputRow:
-		log.Debug("Got output")
+	var images []remediation.Image
+	oneImage := remediation.Image{FullPath: fullImageName, URL: "docker.io", Name: imageName, Version: imageTag}
+	images = append(images, oneImage)
+
+	newRegistries := registries.ImageRegistries{}
+	newRegistries.DefaultRegistries()
+	latestInfo := remediation.GetLatestVersionsForImages(images, newRegistries)
+
+	var latestVersion string
+	for _, inf := range latestInfo {
+		latestVersion = inf.LatestVersion
 	}
+	scanStatusRow.LatestAvailableImageVersion = latestVersion
+
+	log.Infof("Sending output to Table Printer %s %s %s", scanStatusRow.ImageName, scanStatusRow.BlackDuckURL, scanStatusRow.LatestAvailableImageVersion)
+	scanStatusRowChan <- scanStatusRow
 
 	return err
 }
 
-type ScanStatusTableValues struct {
-	ImageName    string
-	BlackDuckURL string
+type ScanStatusRow struct {
+	ImageName                   string
+	ImageTag                    string
+	ImageSha                    string
+	BlackDuckURL                string
+	LatestAvailableImageVersion string
 }
 
-func PrintScanStatusTable(tableValues <-chan *ScanStatusTableValues, printingFinishedChannel chan<- bool) {
+func PrintScanStatusTable(scanStatusRowChan <-chan *ScanStatusRow, printingFinishedChannel chan<- bool) {
 	log.Tracef("inside table printer")
 	t := table.NewWriter()
 	// t.SetOutputMirror(os.Stdout)
 	// t.SetAutoIndex(true)
-	t.AppendHeader(table.Row{"Image Name", "BlackDuck URL"})
+	t.AppendHeader(table.Row{"Image Name", "Image Tag", "BlackDuck URL", "Latest Available Image Tag"})
 
 	// process output structs concurrently
 	log.Tracef("waiting for values over channel")
-	for tableValue := range tableValues {
-		log.Tracef("processing table value for image: %s, url: %s", tableValue.ImageName, tableValue.BlackDuckURL)
+	for row := range scanStatusRowChan {
+		log.Tracef("processing table value for image: %s, url: %s", row.ImageName, row.BlackDuckURL)
 		t.AppendRow([]interface{}{
-			fmt.Sprintf("%s", tableValue.ImageName),
-			fmt.Sprintf("%s", tableValue.BlackDuckURL),
+			fmt.Sprintf("%s", row.ImageName),
+			fmt.Sprintf("%s", row.ImageTag),
+			fmt.Sprintf("%s", row.BlackDuckURL),
+			fmt.Sprintf("%s", row.LatestAvailableImageVersion),
 		})
 		fmt.Printf("Intermediate Table: \n%s\n\n", t.Render())
 	}
