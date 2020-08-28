@@ -13,7 +13,7 @@ type NamespaceScanFlags struct {
 	DetectOfflineMode string
 	BlackDuckURL      string
 	BlackDuckToken    string
-	LoggingLevel      string
+	// DetectProjectName string
 	// TODO: add how many scans to process simultaneously
 	// ConcurrencyLevel  string
 }
@@ -21,7 +21,7 @@ type NamespaceScanFlags struct {
 func SetupNamespaceScanCommand() *cobra.Command {
 	namespaceScanFlags := &NamespaceScanFlags{}
 
-	flagMap := map[string]interface{}{
+	detectPassThroughFlagsMap := map[string]interface{}{
 		DetectOfflineModeFlag: &namespaceScanFlags.DetectOfflineMode,
 		BlackDuckURLFlag:      &namespaceScanFlags.BlackDuckURL,
 		BlackDuckTokenFlag:    &namespaceScanFlags.BlackDuckToken,
@@ -37,17 +37,20 @@ func SetupNamespaceScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, flagMap))
+			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, detectPassThroughFlagsMap))
 		},
 	}
 
 	command.Flags().StringVar(&namespaceScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
 	command.Flags().StringVar(&namespaceScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
 	command.Flags().StringVar(&namespaceScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
+	// TODO: by default, this would be the namespace, but maybe let user override here?
+	// command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
+
 	return command
 }
 
-func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, flagMap map[string]interface{}) error {
+func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, detectPassThroughFlagsMap map[string]interface{}) error {
 	var err error
 	var imageList []string
 
@@ -60,5 +63,5 @@ func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellation
 		return err
 	}
 
-	return EndToEndRunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, flagMap)
+	return RunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, detectPassThroughFlagsMap, namespace)
 }

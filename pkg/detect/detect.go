@@ -89,21 +89,21 @@ func (c *Client) DownloadDetectIfNotExists() error {
 	}
 }
 
-func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outputDirName, userSpecifiedDetectFlags string) error {
-
+func (c *Client) RunImageScan(fullImageName, projectName, imageName, imageTag, outputDirName, userSpecifiedDetectFlags string) error {
 	var err error
-	// a unique string, but something that's human readable, i.e.: IMAGENAME_TAG_SHA
-	uniqueString := fmt.Sprintf("%s_%s_%s", imageName, imageTag, imageSha)
-	unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueString)
-	squashedImageTarFilePath := fmt.Sprintf("squashed_%s.tar", uniqueString)
-	log.Tracef("unsquashed image tar file path: %s", unsquashedImageTarFilePath)
-	log.Tracef("squashed image tar file path: %s", squashedImageTarFilePath)
+	log.Infof("scanning: %s", fullImageName)
+
+	// a unique string, but something that's human readable, i.e.: NAME_TAG
+	uniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s", imageName, imageTag))
 
 	// UNSQUASHED
+	// unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueSanitizedString)
+	// log.Tracef("unsquashed image tar file path: %s", unsquashedImageTarFilePath)
 	// c.DockerCLIClient.SaveDockerImage(imageName, unsquashedImageTarFilePath)
 
 	// SQUASHED
-	log.Infof("full image scan: %s", fullImageName)
+	// squashedImageTarFilePath := fmt.Sprintf("squashed_%s.tar", uniqueSanitizedString)
+	// log.Tracef("squashed image tar file path: %s", squashedImageTarFilePath)
 	// err = dockersquash.DockerSquash(fullImageName, squashedImageTarFilePath)
 	// if err != nil {
 	// 	return err
@@ -115,93 +115,101 @@ func (c *Client) RunImageScan(fullImageName, imageName, imageTag, imageSha, outp
 	// --detect.cleanup=false
 	defaultGlobalFlags := fmt.Sprintf("--detect.cleanup=false --blackduck.trust.cert=true --detect.tools.output.path=%s --detect.output.path=%s", DefaultToolsDirectory, outputDirName)
 	log.Tracef("default global flags: %s", defaultGlobalFlags)
-	// TODO: figure out concurrent docker-inspector scans
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s %s", c.DetectPath, c.GetConcurrentDockerInspectorAndSignatureScanFlags(fullImageName, imageName, imageTag), defaultGlobalFlags, userSpecifiedDetectFlags, c.GetPersistentDockerInspectorFlags()))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetSignatureScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetBinaryScanOnlyFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentUnsquashedScanFlags(unsquashedImageTarFilePath, imageName, ""), defaultGlobalFlags, userSpecifiedDetectFlags))
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("%s %s %s %s", c.DetectPath, c.GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha), defaultGlobalFlags, userSpecifiedDetectFlags))
-	log.Tracef("command is: %s", cmd)
+
+	var projectVersionName string
+	if 0 == len(projectName) {
+		projectName = imageName
+		projectVersionName = imageTag
+	} else {
+		projectVersionName = uniqueSanitizedString
+	}
+
+	var cmdStr string
+	cmdStr = fmt.Sprintf("%s %s %s %s %s %s", c.DetectPath, defaultGlobalFlags, userSpecifiedDetectFlags, c.GetProjectNameFlag(projectName), c.GetProjectVersionNameFlag(projectVersionName), c.GetPersistentDockerInspectorServicesFlags())
+	cmdStr += fmt.Sprintf(" %s", c.GetDetectDefaultScanFlags(fullImageName))
+	// cmdStr = fmt.Sprintf(" %s %s", c.GetConcurrentDockerInspectorScanFlags(), c.GetAllUnsquashedScanFlags(unsquashedImageTarFilePath))
+	// cmdStr = fmt.Sprintf(" %s", c.GetAllSquashedScanFlags(squashedImageTarFilePath, fullImageName))
+	cmd := util.GetExecCommandFromString(cmdStr)
 
 	// NOTE: by design, we explicitly don't print out the detect output
-	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
-	if log.GetLevel() == log.TraceLevel {
-		// if trace enabled, allow capturing progress
-		log.Tracef("since trace level is enabled, will capture progress as command executes")
-		err = util.RunCommandAndCaptureProgress(cmd)
-	} else {
-		log.Tracef("output will be printed at the end")
-		// otherwise, just print at the end
-		_, err = util.RunCommand(cmd)
-	}
+	err = util.RunCommandBasedOnLoggingLevel(cmd)
 	return err
 }
 
-// GetDetectDefaultScanFlags: this is the default scan that detect invokes (which is just docker-inspector + signature scanner)
-func (c *Client) GetDetectDefaultScanFlags(imageName string) string {
-	return fmt.Sprintf("--detect.docker.image=%s", imageName)
+// GetDetectDefaultScanFlags: this is the default scan that detect invokes (which is just docker-inspector + squashed signature scanner)
+func (c *Client) GetDetectDefaultScanFlags(fullImageName string) string {
+	return fmt.Sprintf("--detect.docker.image=%s", fullImageName)
 }
 
-func (c *Client) GetPersistentDockerInspectorFlags() string {
+// GetPersistentDockerInspectorServicesFlags: flags to pass to detect if docker-inspector is setup to run on host with
+// each image inspector service runs in a container
+// https://blackducksoftware.github.io/blackduck-docker-inspector/latest/deployment/#deployment-sample-for-docker-using-persistent-image-inspector-services
+// https://github.com/blackducksoftware/blackduck-docker-inspector/blob/9.1.1/deployment/docker/runDetectAgainstDockerServices/setup.sh#L111
+// https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/760021042/Docker+Inspector+Properties
+func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
 	return fmt.Sprintf("--detect.docker.path.required=false --detect.docker.passthrough.imageinspector.service.url=http://localhost:9002 --detect.docker.passthrough.imageinspector.service.start=false --detect.docker.passthrough.shared.dir.path.local=%s/blackduck/shared", util.GetHomeDir())
 }
 
-func (c *Client) GetConcurrentDockerInspectorAndSignatureScanFlags(fullImageName, imageName, imageVersion string) string {
-	// return fmt.Sprintf("%s %s %s %s", c.GetDetectDefaultScanFlags(fullImageName), c.GetConcurrentDockerInspectorScanFlags(), c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageVersion))
-	return fmt.Sprintf("%s %s %s", c.GetDetectDefaultScanFlags(fullImageName), c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageVersion))
+// SetupPersistentDockerInspectorServices: sets up persistent docker services on host; goes together with GetPersistentDockerInspectorServicesFlags
+func (c *Client) SetupPersistentDockerInspectorServices() error {
+	// first setup docker-inspector
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c $GOPATH/src/github.com/blackducksoftware/kubectl-bd-xray/pkg/detect/runDetectAgainstDockerServices.sh"))
+	return util.RunCommandBasedOnLoggingLevel(cmd)
 }
 
+// GetConcurrentDockerInspectorScanFlags: ask inspector not to cleanup services it spins up to re-use;
+// must wait a bit after first scan and then run concurrently
+// TODO: not working, check application properties to see if flag actually gets passed
+//  https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/760381459/Concurrent+Execution
 func (c *Client) GetConcurrentDockerInspectorScanFlags() string {
 	// passthrough flag makes docker-inspector be able to run multiple scans
 	return fmt.Sprintf("--detect.docker.passthrough.imageinspector.cleanup.inspector.container=false")
 }
 
 // GetDockerInspectorScanOnlyFlags docker-inspector only
-func (c *Client) GetDockerInspectorScanOnlyFlags(imageName string) string {
-	return fmt.Sprintf("--detect.tools=DOCKER %s", c.GetDetectDefaultScanFlags(imageName))
+func (c *Client) GetDockerInspectorScanOnlyFlags(fullImageName string) string {
+	return fmt.Sprintf("--detect.tools=DOCKER %s", c.GetDetectDefaultScanFlags(fullImageName))
 }
 
 // GetSignatureScanOnlyFlags signature scanner only
-func (c *Client) GetSignatureScanOnlyFlags(imageTarFilePath, imageName, imageVersion string) string {
+func (c *Client) GetSignatureScanOnlyFlags(imageTarFilePath string) string {
 	// NOTE: project name is required, since otherwise it uses the directory name from which the tarball was scanned
-	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s %s", imageTarFilePath, c.GetProjectNameFlag(imageName))
+	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.paths=%s", imageTarFilePath)
 }
 
 // GetBinaryScanOnlyFlags binary scanner only
-func (c *Client) GetBinaryScanOnlyFlags(imageTarFilePath, imageName, imageVersion string) string {
+func (c *Client) GetBinaryScanOnlyFlags(imageTarFilePath string) string {
 	// TODO: not sure if project name is required
-	return fmt.Sprintf("--detect.tools=BINARY_SCAN --detect.binary.scan.file.path=%s %s", imageTarFilePath, c.GetProjectNameFlag(imageName))
+	return fmt.Sprintf("--detect.tools=BINARY_SCAN --detect.binary.scan.file.path=%s", imageTarFilePath)
+}
+
+// GetAllSquashedScanFlags [squashed] docker-inspector + signature + binary
+func (c *Client) GetAllSquashedScanFlags(squashedImageTarFilePath, fullImageName string) string {
+	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s", fullImageName, squashedImageTarFilePath)
+}
+
+// GetAllUnsquashedScanFlags [unsquashed] docker-inspector + signature + binary
+func (c *Client) GetAllUnsquashedScanFlags(unsquashedImageTarFilePath string) string {
+	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
+	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s", unsquashedImageTarFilePath, unsquashedImageTarFilePath)
 }
 
 // GetBinaryAndSignatureScanFlags signature + binary scanners
-func (c *Client) GetBinaryAndSignatureScanFlags(imageTarFilePath, imageName, imageVersion string) string {
-	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN,BINARY_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.binary.scan.file.path=%s %s", imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
+func (c *Client) GetBinaryAndSignatureScanFlags(imageTarFilePath string) string {
+	return fmt.Sprintf("--detect.tools=SIGNATURE_SCAN,BINARY_SCAN --detect.blackduck.signature.scanner.paths=%s --detect.binary.scan.file.path=%s", imageTarFilePath, imageTarFilePath)
 }
 
-// GetAllScanFlags docker-inspector + signature + binary
-func (c *Client) GetAllScanFlags(imageTarFilePath, imageName, imageVersion string) string {
-	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
-	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
-}
-
-// GetAllConcurrentUnsquashedScanFlags docker-inspector + signature + binary
-func (c *Client) GetAllConcurrentUnsquashedScanFlags(imageTarFilePath, imageName, imageVersion string) string {
-	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
-	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s %s", c.GetConcurrentDockerInspectorScanFlags(), imageTarFilePath, imageTarFilePath, c.GetProjectNameFlag(imageName))
-}
-
-func (c *Client) GetAllConcurrentSquashedScanFlags(squashedImageTarFilePath, fullImageName, imageName, imageTag, imageSha string) string {
-	return fmt.Sprintf("%s --detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.image=%s --detect.binary.scan.file.path=%s %s %s", c.GetConcurrentDockerInspectorScanFlags(), fullImageName, squashedImageTarFilePath, c.GetProjectNameFlag(imageName), c.GetProjectVersionNameFlag(imageTag))
-}
-
+// GetProjectNameFlag sets up the project name flag
 func (c *Client) GetProjectNameFlag(projectName string) string {
 	return fmt.Sprintf("--detect.project.name=%s", projectName)
 }
 
+// GetProjectVersionNameFlag sets up the project version name flag
 func (c *Client) GetProjectVersionNameFlag(projectVersionName string) string {
 	return fmt.Sprintf("--detect.project.version.name=%s", projectVersionName)
 }
 
+// GetCodeLocationNameFlag sets up the code location name flag
 func (c *Client) GetCodeLocationNameFlag(codeLocationName string) string {
 	return fmt.Sprintf("--detect.code.location.name=%s", codeLocationName)
 }

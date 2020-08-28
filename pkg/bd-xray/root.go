@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
@@ -20,8 +19,8 @@ func InitAndExecute() {
 }
 
 type RootFlags struct {
-	LogLevel              string
-	GenericCliConfigFlags *genericclioptions.ConfigFlags
+	LogLevel string
+	// GenericCliConfigFlags *genericclioptions.ConfigFlags
 }
 
 func SetupRootCommand() *cobra.Command {
@@ -38,10 +37,11 @@ func SetupRootCommand() *cobra.Command {
 
 	rootCmd.PersistentFlags().StringVarP(&rootFlags.LogLevel, "verbosity", "v", "info", "log level; one of [info, debug, trace, warn, error, fatal, panic]")
 
-	rootFlags.GenericCliConfigFlags = genericclioptions.NewConfigFlags(false)
-	rootFlags.GenericCliConfigFlags.AddFlags(rootCmd.Flags())
+	// rootFlags.GenericCliConfigFlags = genericclioptions.NewConfigFlags(false)
+	// rootFlags.GenericCliConfigFlags.AddFlags(rootCmd.Flags())
 
 	rootCmd.AddCommand(SetupImageScanCommand())
 	rootCmd.AddCommand(SetupNamespaceScanCommand())
+
 	return rootCmd
 }

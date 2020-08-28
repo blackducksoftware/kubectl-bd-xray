@@ -57,6 +57,20 @@ func GetExecCommandFromString(fullCmd string) *exec.Cmd {
 	return exec.Command(cmdName, cmdArgs...)
 }
 
+func RunCommandBasedOnLoggingLevel(cmd *exec.Cmd) error {
+	var err error
+	if log.GetLevel() == log.TraceLevel {
+		// if trace enabled, allow capturing progress
+		log.Tracef("since trace level is enabled, will forward progress in stdout as subcommand executes")
+		err = RunCommandAndCaptureProgress(cmd)
+	} else {
+		log.Tracef("output will be logged at the end")
+		// otherwise, print wait messages and log output at the end,
+		_, err = RunCommand(cmd)
+	}
+	return err
+}
+
 func RunCommand(cmd *exec.Cmd) (string, error) {
 	stop := make(chan struct{})
 	currDirectory := cmd.Dir
@@ -87,7 +101,7 @@ func RunCommand(cmd *exec.Cmd) (string, error) {
 func RunCommandAndCaptureProgress(cmd *exec.Cmd) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	// can't use CommandRun(cmd) here -- attaching to os pipes interferes with cmd.CombinedOutput()
+	// can't use RunCommand(cmd) here -- attaching to os pipes interferes with cmd.CombinedOutput()
 	log.Infof("running command '%s' with pipes attached in directory: '%s'", cmd.String(), cmd.Dir)
 	return errors.Wrapf(cmd.Run(), "unable to run command '%s'", cmd.String())
 }
@@ -222,4 +236,10 @@ func ParseImageRepo(image string) string {
 		return ""
 	}
 	return repoSubstringSubmatch[1]
+}
+
+func SanitizeString(name string) string {
+	var output string
+	output = strings.ReplaceAll(name, ".", "_")
+	return output
 }

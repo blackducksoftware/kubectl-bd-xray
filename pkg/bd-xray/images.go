@@ -3,6 +3,7 @@ package bd_xray
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/oklog/run"
@@ -26,8 +27,6 @@ type ImageScanFlags struct {
 	BlackDuckURL      string
 	BlackDuckToken    string
 	DetectProjectName string
-	DetectVersionName string
-	LoggingLevel      string
 	// TODO: add how many scans to process simultaneously
 	// ConcurrencyLevel  string
 }
@@ -35,12 +34,10 @@ type ImageScanFlags struct {
 func SetupImageScanCommand() *cobra.Command {
 	imageScanFlags := &ImageScanFlags{}
 
-	flagMap := map[string]interface{}{
+	detectPassThroughFlagsMap := map[string]interface{}{
 		DetectOfflineModeFlag: &imageScanFlags.DetectOfflineMode,
 		BlackDuckURLFlag:      &imageScanFlags.BlackDuckURL,
 		BlackDuckTokenFlag:    &imageScanFlags.BlackDuckToken,
-		DetectProjectNameFlag: &imageScanFlags.DetectProjectName,
-		DetectVersionNameFlag: &imageScanFlags.DetectVersionName,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,7 +50,7 @@ func SetupImageScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(EndToEndRunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, flagMap))
+			util.DoOrDie(RunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, detectPassThroughFlagsMap, imageScanFlags.DetectProjectName))
 		},
 	}
 
@@ -61,17 +58,19 @@ func SetupImageScanCommand() *cobra.Command {
 	command.Flags().StringVar(&imageScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
 	command.Flags().StringVar(&imageScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
 	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable project name.")
-	command.Flags().StringVar(&imageScanFlags.DetectVersionName, DetectVersionNameFlag, "", "An override for the version to use for the Black Duck project. If not supplied, Detect will attempt to use the tools to figure out a reasonable version name. If that fails, the current date will be used.")
 
 	return command
 }
 
-func EndToEndRunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, flagMap map[string]interface{}) error {
+func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, detectPassThroughFlagsMap map[string]interface{}, projectName string) error {
 	var err error
 
-	// first setup docker-inspector
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c $GOPATH/src/github.com/blackducksoftware/kubectl-bd-xray/pkg/detect/runDetectAgainstDockerServices.sh"))
-	_, err = util.RunCommand(cmd)
+	detectClient := detect.NewDefaultClient()
+	err = detectClient.DownloadDetectIfNotExists()
+	if err != nil {
+		return err
+	}
+	err = detectClient.SetupPersistentDockerInspectorServices()
 	if err != nil {
 		return err
 	}
@@ -84,7 +83,7 @@ func EndToEndRunAndPrintMultipleImageScansConcurrently(ctx context.Context, canc
 		return err
 	}
 
-	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, flagMap, scanStatusTableValues)
+	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, detectClient, imageList, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
 	if err != nil {
 		return err
 	}
@@ -114,7 +113,7 @@ func BlockOnDoneChan(doneChan chan bool) {
 	}
 }
 
-func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
+func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, detectClient *detect.Client, imageList []string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
 	var err error
 
 	var goRoutineGroup run.Group
@@ -123,7 +122,7 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 		image := image
 		log.Infof("Scanning image: %s", image)
 		goRoutineGroup.Add(func() error {
-			return RunImageScanCommand(ctx, image, flagMap, scanStatusTableValues)
+			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
 		}, func(error) {
 			cancellationFunc()
 		})
@@ -140,40 +139,38 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 	return err
 }
 
-func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues) error {
+// RunImageScanCommand
+// https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631374044/Detect+Properties
+func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
+
 	var err error
 
-	detectClient := detect.NewDefaultClient()
-	detectClient.DownloadDetectIfNotExists()
-
-	flagsToPassToDetect := ""
-	for flagName, flagVal := range flagMap {
+	detectPassThroughFlags := ""
+	for flagName, flagVal := range detectPassThroughFlagsMap {
 		castFlagVal := *flagVal.(*string)
 		if castFlagVal == "" {
 			continue
 		}
-		flagsToPassToDetect += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
+		detectPassThroughFlags += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
 	}
 
-	err = detectClient.DockerCLIClient.PullDockerImage(fullImageName)
-	if err != nil {
-		return err
-	}
-
-	// uniqueOutputDirName := fmt.Sprintf("%s/%s_%s", detect.DefaultDetectBlackduckDirectory, image, util.GenerateRandomString(16))
 	imageName := util.ParseImageName(fullImageName)
 	imageTag := util.ParseImageTag(fullImageName)
-	imageSha, err := detectClient.DockerCLIClient.GetImageSha(fullImageName)
-	if err != nil {
-		return err
-	}
-	// a unique string, but something that's human readable, i.e.: IMAGENAME_SHA_RANDOMSTRING(or timestamp)
-	uniqueOutputDirName := fmt.Sprintf("%s/%s_%s_%s", detect.DefaultDetectBlackduckDirectory, imageName, imageSha, util.GenerateRandomString(16))
+	// // needed in order to calculate the sha
+	// err = detectClient.DockerCLIClient.PullDockerImage(fullImageName)
+	// if err != nil {
+	// 	return err
+	// }
+	// imageSha, err := detectClient.DockerCLIClient.GetImageSha(fullImageName)
+	// if err != nil {
+	// 	return err
+	// }
+	// a unique string, but something that's human readable, i.e.: TODO: TIMESTAMP_NAME_TAG_RANDOMSTRING
+	timestampUniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s_%s_%s", time.Now().Format("20060102150405"), imageName, imageTag, util.GenerateRandomString(16)))
+	uniqueOutputDirName := fmt.Sprintf("%s/%s", detect.DefaultDetectBlackduckDirectory, timestampUniqueSanitizedString)
 	log.Tracef("output dir is: %s", uniqueOutputDirName)
-	// actually scan
-	log.Tracef("starting image scan")
 
-	err = detectClient.RunImageScan(fullImageName, imageName, imageTag, imageSha, uniqueOutputDirName, flagsToPassToDetect)
+	err = detectClient.RunImageScan(fullImageName, projectName, imageName, imageTag, uniqueOutputDirName, detectPassThroughFlags)
 	if err != nil {
 		return err
 	}
@@ -198,6 +195,7 @@ func RunImageScanCommand(ctx context.Context, fullImageName string, flagMap map[
 	location := locations[0]
 	log.Infof("location in Black Duck: %s", location)
 
+	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
 	outputRow := &ScanStatusTableValues{ImageName: fullImageName, BlackDuckURL: location}
 	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
 	// scanStatusTableValues <- outputRow
