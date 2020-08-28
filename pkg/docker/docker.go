@@ -80,8 +80,8 @@ func (cli *DockerCLIClient) GetImageSha(image string) (string, error) {
 }
 
 // SaveDockerImage creates a tar as an un-squashed image
+// TODO: use golang client instead of docker
 func (cli *DockerCLIClient) SaveDockerImage(image, filePath string) error {
-	// TODO: use golang client instead of docker
 	// cli.DockerClient.ImageSave()
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker save -o %s %s", filePath, image))
 	var err error
@@ -89,6 +89,7 @@ func (cli *DockerCLIClient) SaveDockerImage(image, filePath string) error {
 	return err
 }
 
+// TODO: use golang client instead of docker
 func (cli *DockerCLIClient) SaveDockerImageAsTarGz(image, filePath string) error {
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c docker save %s | gzip > %s.tar.gz", image, filePath))
 	var err error
@@ -96,9 +97,26 @@ func (cli *DockerCLIClient) SaveDockerImageAsTarGz(image, filePath string) error
 	return err
 }
 
+// TODO: use golang client instead of docker
 func (cli *DockerCLIClient) PullDockerImage(image string) error {
 	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker pull %s", image))
 	var err error
+	_, err = util.RunCommand(cmd)
+	return err
+}
+
+// TODO: use golang client instead of docker
+func (cli *DockerCLIClient) StopContainerByName(containerName string) error {
+	var err error
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker stop %s", containerName))
+	_, err = util.RunCommand(cmd)
+	return err
+}
+
+// TODO: use golang client instead of docker
+func (cli *DockerCLIClient) DeleteContainerByName(containerName string) error {
+	var err error
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker rm %s", containerName))
 	_, err = util.RunCommand(cmd)
 	return err
 }

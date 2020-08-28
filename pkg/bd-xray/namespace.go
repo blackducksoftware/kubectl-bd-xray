@@ -9,47 +9,39 @@ import (
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
 )
 
-type NamespaceScanFlags struct {
-	DetectOfflineMode string
-	BlackDuckURL      string
-	BlackDuckToken    string
-	DetectProjectName string
-	// TODO: add how many scans to process simultaneously
-	// ConcurrencyLevel  string
-}
-
 func SetupNamespaceScanCommand() *cobra.Command {
-	namespaceScanFlags := &NamespaceScanFlags{}
+	commonFlags := &CommonFlags{}
 
 	detectPassThroughFlagsMap := map[string]interface{}{
-		DetectOfflineModeFlag: &namespaceScanFlags.DetectOfflineMode,
-		BlackDuckURLFlag:      &namespaceScanFlags.BlackDuckURL,
-		BlackDuckTokenFlag:    &namespaceScanFlags.BlackDuckToken,
+		DetectOfflineModeFlagName: &commonFlags.DetectOfflineMode,
+		BlackDuckURLFlagName:      &commonFlags.BlackDuckURL,
+		BlackDuckTokenFlagName:    &commonFlags.BlackDuckToken,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	command := &cobra.Command{
-		Use:   "namespace NAMESPACE_NAME...",
+		Use:   "namespace NAMESPACE_NAME",
 		Short: "scan all images in a namespace",
 		Long:  "scan all images in a namespace",
 		Args: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, namespaceScanFlags, detectPassThroughFlagsMap))
+			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, commonFlags, detectPassThroughFlagsMap))
 		},
 	}
 
-	command.Flags().StringVar(&namespaceScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
-	command.Flags().StringVar(&namespaceScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
-	command.Flags().StringVar(&namespaceScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
-	command.Flags().StringVar(&namespaceScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created with namespace name and image name and tag will be passed as version.")
+	command.Flags().StringVar(&commonFlags.DetectOfflineMode, DetectOfflineModeFlagName, "false", "Enabled Offline Scanning")
+	command.Flags().StringVar(&commonFlags.BlackDuckURL, BlackDuckURLFlagName, "", "Black Duck Server URL")
+	command.Flags().StringVar(&commonFlags.BlackDuckToken, BlackDuckTokenFlagName, "", "Black Duck API Token")
+	command.Flags().StringVar(&commonFlags.DetectProjectName, DetectProjectNameFlagName, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created with namespace name and image name and tag will be passed as version.")
+	command.Flags().BoolVarP(&commonFlags.CleanupPersistentDockerInspectorServices, CleanupPersistentDockerInspectorServicesName, "c", true, "Clean up the docker inspector services")
 
 	return command
 }
 
-func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, namespaceScanFlags *NamespaceScanFlags, detectPassThroughFlagsMap map[string]interface{}) error {
+func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellationFunc context.CancelFunc, commonFlags *CommonFlags, detectPassThroughFlagsMap map[string]interface{}) error {
 	var err error
 	var imageList []string
 
@@ -63,12 +55,12 @@ func RunNamespaceScanCommand(namespace string, ctx context.Context, cancellation
 	}
 
 	var projectName string
-	var userSuppliedProjectName = namespaceScanFlags.DetectProjectName
+	var userSuppliedProjectName = commonFlags.DetectProjectName
 	if 0 == len(userSuppliedProjectName) {
 		projectName = namespace
 	} else {
 		projectName = userSuppliedProjectName
 	}
 
-	return RunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, detectPassThroughFlagsMap, projectName)
+	return RunAndPrintMultipleImageScansConcurrently(ctx, cancellationFunc, imageList, detectPassThroughFlagsMap, projectName, commonFlags.CleanupPersistentDockerInspectorServices)
 }

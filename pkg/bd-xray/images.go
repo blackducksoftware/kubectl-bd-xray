@@ -15,29 +15,31 @@ import (
 )
 
 const (
-	DetectOfflineModeFlag = "blackduck.offline.mode"
-	BlackDuckURLFlag      = "blackduck.url"
-	BlackDuckTokenFlag    = "blackduck.api.token"
-	DetectProjectNameFlag = "detect.project.name"
-	DetectVersionNameFlag = "detect.project.version.name"
+	DetectOfflineModeFlagName                    = "blackduck.offline.mode"
+	BlackDuckURLFlagName                         = "blackduck.url"
+	BlackDuckTokenFlagName                       = "blackduck.api.token"
+	DetectProjectNameFlagName                    = "detect.project.name"
+	DetectVersionNameFlagName                    = "detect.project.version.name"
+	CleanupPersistentDockerInspectorServicesName = "cleanup"
 )
 
-type ImageScanFlags struct {
-	DetectOfflineMode string
-	BlackDuckURL      string
-	BlackDuckToken    string
-	DetectProjectName string
+type CommonFlags struct {
+	DetectOfflineMode                        string
+	BlackDuckURL                             string
+	BlackDuckToken                           string
+	DetectProjectName                        string // TODO: this is handle specially, not just a passthrough
+	CleanupPersistentDockerInspectorServices bool
 	// TODO: add how many scans to process simultaneously
 	// ConcurrencyLevel  string
 }
 
 func SetupImageScanCommand() *cobra.Command {
-	imageScanFlags := &ImageScanFlags{}
+	commonFlags := &CommonFlags{}
 
 	detectPassThroughFlagsMap := map[string]interface{}{
-		DetectOfflineModeFlag: &imageScanFlags.DetectOfflineMode,
-		BlackDuckURLFlag:      &imageScanFlags.BlackDuckURL,
-		BlackDuckTokenFlag:    &imageScanFlags.BlackDuckToken,
+		DetectOfflineModeFlagName: &commonFlags.DetectOfflineMode,
+		BlackDuckURLFlagName:      &commonFlags.BlackDuckURL,
+		BlackDuckTokenFlagName:    &commonFlags.BlackDuckToken,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,19 +52,20 @@ func SetupImageScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, detectPassThroughFlagsMap, imageScanFlags.DetectProjectName))
+			util.DoOrDie(RunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, detectPassThroughFlagsMap, commonFlags.DetectProjectName, commonFlags.CleanupPersistentDockerInspectorServices))
 		},
 	}
 
-	command.Flags().StringVar(&imageScanFlags.DetectOfflineMode, DetectOfflineModeFlag, "false", "Enabled Offline Scanning")
-	command.Flags().StringVar(&imageScanFlags.BlackDuckURL, BlackDuckURLFlag, "", "Black Duck Server URL")
-	command.Flags().StringVar(&imageScanFlags.BlackDuckToken, BlackDuckTokenFlag, "", "Black Duck API Token")
-	command.Flags().StringVar(&imageScanFlags.DetectProjectName, DetectProjectNameFlag, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created for each image")
+	command.Flags().StringVar(&commonFlags.DetectOfflineMode, DetectOfflineModeFlagName, "false", "Enabled Offline Scanning")
+	command.Flags().StringVar(&commonFlags.BlackDuckURL, BlackDuckURLFlagName, "", "Black Duck Server URL")
+	command.Flags().StringVar(&commonFlags.BlackDuckToken, BlackDuckTokenFlagName, "", "Black Duck API Token")
+	command.Flags().StringVar(&commonFlags.DetectProjectName, DetectProjectNameFlagName, "", "An override for the name to use for the Black Duck project. If not supplied, a project will be created for each image")
+	command.Flags().BoolVarP(&commonFlags.CleanupPersistentDockerInspectorServices, CleanupPersistentDockerInspectorServicesName,"c",  true, "Clean up the docker inspector services")
 
 	return command
 }
 
-func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, detectPassThroughFlagsMap map[string]interface{}, projectName string) error {
+func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, imageList []string, detectPassThroughFlagsMap map[string]interface{}, projectName string, cleanup bool) error {
 	var err error
 
 	detectClient := detect.NewDefaultClient()
@@ -73,6 +76,9 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 	err = detectClient.SetupPersistentDockerInspectorServices()
 	if err != nil {
 		return err
+	}
+	if cleanup {
+		defer detectClient.StopAndCleanupPersistentDockerInspectorServices()
 	}
 
 	scanStatusTableValues := make(chan *ScanStatusTableValues)
@@ -89,6 +95,7 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 	}
 
 	BlockOnDoneChan(doneChan)
+
 	return nil
 }
 

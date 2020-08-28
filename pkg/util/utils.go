@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -243,3 +244,120 @@ func SanitizeString(name string) string {
 	output = strings.ReplaceAll(name, ".", "_")
 	return output
 }
+
+var (
+	signals = make(chan os.Signal, 100)
+)
+
+func FinishRunning(stepName string, cmd *exec.Cmd) (bool, string, string) {
+	// TODO
+	verbose := true
+
+	log.Printf("Running: %v", stepName)
+	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+	if verbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case s := <-signals:
+				cmd.Process.Signal(s)
+			}
+		}
+	}()
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("Error running %v: %v", stepName, err)
+		if !verbose {
+			return false, string(stdout.Bytes()), string(stderr.Bytes())
+		} else {
+			return false, "", ""
+		}
+	}
+	return true, "", ""
+}
+
+// Runs the provided bash without wrapping it in any kubernetes-specific gunk.
+func RunRawBashWithOutputs(stepName, bash string) (bool, string, string) {
+	// TODO:
+	traceBash := true
+
+	cmd := exec.Command("bash", "-s")
+	if traceBash {
+		cmd.Args = append(cmd.Args, "-x")
+	}
+	cmd.Stdin = strings.NewReader(bash)
+	return FinishRunning(stepName, cmd)
+}
+
+func RunRawBash(stepName, bashFragment string) bool {
+	result, _, _ := RunRawBashWithOutputs(stepName, bashFragment)
+	return result
+}
+
+func RunBashWithOutputs(stepName, bashFragment string) (bool, string, string) {
+	return RunRawBashWithOutputs(stepName, BashWrap(bashFragment))
+}
+
+func RunBash(stepName, bashFragment string) bool {
+	return RunRawBash(stepName, BashWrap(bashFragment))
+}
+
+func BashWrap(cmd string) string {
+	return `
+` + cmd + `
+`
+}
+
+// // call the returned anonymous function to stop.
+// func runBashUntil(stepName, bashFragment string) func() {
+// 	cmd := exec.Command("bash", "-s")
+// 	cmd.Stdin = strings.NewReader(BashWrap(bashFragment))
+// 	log.Printf("Running in background: %v", stepName)
+// 	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+// 	cmd.Stdout, cmd.Stderr = stdout, stderr
+// 	if err := cmd.Start(); err != nil {
+// 		log.Printf("Unable to start '%v': '%v'", stepName, err)
+// 		return func() {}
+// 	}
+// 	return func() {
+// 		cmd.Process.Signal(os.Interrupt)
+// 		headerprefix := stepName + " "
+// 		lineprefix := "  "
+// 		// if *tap {
+// 		// 	headerprefix = "# " + headerprefix
+// 		// 	lineprefix = "# " + lineprefix
+// 		// }
+// 		PrintBashOutputs(headerprefix, lineprefix, string(stdout.Bytes()), string(stderr.Bytes()), false)
+// 	}
+// }
+//
+// func PrintBashOutputs(headerprefix, lineprefix, stdout, stderr string, escape bool) {
+// 	// The |'s (plus appropriate prefixing) are to make this look
+// 	// "YAMLish" to the Jenkins TAP plugin:
+// 	//   https://wiki.jenkins-ci.org/display/JENKINS/TAP+Plugin
+// 	if stdout != "" {
+// 		fmt.Printf("%vstdout: |\n", headerprefix)
+// 		if escape {
+// 			stdout = escapeOutput(stdout)
+// 		}
+// 		printPrefixedLines(lineprefix, stdout)
+// 	}
+// 	if stderr != "" {
+// 		fmt.Printf("%vstderr: |\n", headerprefix)
+// 		if escape {
+// 			stderr = escapeOutput(stderr)
+// 		}
+// 		printPrefixedLines(lineprefix, stderr)
+// 	}
+// }
