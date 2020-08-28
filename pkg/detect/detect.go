@@ -153,7 +153,7 @@ func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
 // SetupPersistentDockerInspectorServices: sets up persistent docker services on host; goes together with GetPersistentDockerInspectorServicesFlags
 func (c *Client) SetupPersistentDockerInspectorServices() error {
 	// first setup docker-inspector
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c $GOPATH/src/github.com/blackducksoftware/kubectl-bd-xray/pkg/detect/runDetectAgainstDockerServices.sh"))
+	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c ../../pkg/detect/runDetectAgainstDockerServices.sh"))
 	return util.RunCommandBasedOnLoggingLevel(cmd)
 }
 
