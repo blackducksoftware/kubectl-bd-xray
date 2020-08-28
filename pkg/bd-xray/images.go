@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jedib0t/go-pretty/table"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/oklog/run"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -75,15 +75,15 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 		return err
 	}
 
-	scanStatusTableValues := make(chan *ScanStatusTableValues)
+	rowValuesGetter := &RowValuesGetter{make(chan *BlackDuckURLRowGetter, len(imageList))}
 	doneChan := make(chan bool, 1)
 
-	err = RunPrinterConcurrently(cancellationFunc, scanStatusTableValues, doneChan)
+	err = RunPrinterConcurrently(cancellationFunc, rowValuesGetter, imageList, doneChan)
 	if err != nil {
 		return err
 	}
 
-	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, detectClient, imageList, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
+	err = RunMultipleImageScansConcurrently(ctx, cancellationFunc, detectClient, imageList, detectPassThroughFlagsMap, rowValuesGetter, projectName)
 	if err != nil {
 		return err
 	}
@@ -92,10 +92,10 @@ func RunAndPrintMultipleImageScansConcurrently(ctx context.Context, cancellation
 	return nil
 }
 
-func RunPrinterConcurrently(cancellationFunc context.CancelFunc, scanStatusTableValues <-chan *ScanStatusTableValues, doneChan chan<- bool) error {
+func RunPrinterConcurrently(cancellationFunc context.CancelFunc, rowValuesGetter *RowValuesGetter, imageNames []string, doneChan chan<- bool) error {
 	var printerGoRoutine run.Group
 	printerGoRoutine.Add(func() error {
-		PrintScanStatusTable(scanStatusTableValues, doneChan)
+		PrintScanStatusTableChan(rowValuesGetter, imageNames, doneChan)
 		return nil
 	}, func(error) {
 		cancellationFunc()
@@ -113,7 +113,7 @@ func BlockOnDoneChan(doneChan chan bool) {
 	}
 }
 
-func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, detectClient *detect.Client, imageList []string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
+func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc context.CancelFunc, detectClient *detect.Client, imageList []string, detectPassThroughFlagsMap map[string]interface{}, rowValuesGetter *RowValuesGetter, projectName string) error {
 	var err error
 
 	var goRoutineGroup run.Group
@@ -122,7 +122,7 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 		image := image
 		log.Infof("Scanning image: %s", image)
 		goRoutineGroup.Add(func() error {
-			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, scanStatusTableValues, projectName)
+			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, rowValuesGetter, projectName)
 		}, func(error) {
 			cancellationFunc()
 		})
@@ -135,13 +135,29 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 	}
 
 	log.Tracef("closing the output channel")
-	close(scanStatusTableValues)
+	close(rowValuesGetter.BlackDuckURLs)
 	return err
 }
 
 // RunImageScanCommand
 // https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631374044/Detect+Properties
-func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, scanStatusTableValues chan *ScanStatusTableValues, projectName string) error {
+func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, rowValuesGetter *RowValuesGetter, projectName string) error {
+
+	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
+	outputRow := &BlackDuckURLRowGetter{RowID: fullImageName, BlackDuckURL: "dummy_url"}
+	log.Infof("Sending output to Table Printer %s %s", outputRow.RowID, outputRow.BlackDuckURL)
+	// scanStatusTableValues <- outputRow
+
+	rowValuesGetter.BlackDuckURLs <- outputRow
+	log.Tracef("outputRow is set to : %s, %s", outputRow.RowID, outputRow.BlackDuckURL)
+	log.Tracef("rowValuesGetter is set to : %s", rowValuesGetter.BlackDuckURLs)
+
+	return nil
+}
+
+// RunImageScanCommand TODO - Change this back to the original
+// https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631374044/Detect+Properties
+func RunImageScanCommandOld(ctx context.Context, detectClient *detect.Client, fullImageName string, detectPassThroughFlagsMap map[string]interface{}, rowValuesGetter *RowValuesGetter, projectName string) error {
 
 	var err error
 
@@ -196,16 +212,13 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	log.Infof("location in Black Duck: %s", location)
 
 	// TODO: add a column in table for where detect logs so users can examine afterwards if needed
-	outputRow := &ScanStatusTableValues{ImageName: fullImageName, BlackDuckURL: location}
-	log.Infof("Sending output to Table Printer %s %s", outputRow.ImageName, outputRow.BlackDuckURL)
+	outputRow := &BlackDuckURLRowGetter{RowID: fullImageName, BlackDuckURL: location}
+	log.Infof("Sending output to Table Printer %s %s", outputRow.RowID, outputRow.BlackDuckURL)
 	// scanStatusTableValues <- outputRow
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case scanStatusTableValues <- outputRow:
-		log.Debug("Got output")
-	}
+	rowValuesGetter.BlackDuckURLs <- outputRow
+	log.Tracef("outputRow is set to : %s, %s", outputRow.RowID, outputRow.BlackDuckURL)
+	log.Tracef("rowValuesGetter is set to : %+v", rowValuesGetter.BlackDuckURLs)
 
 	return err
 }
@@ -238,3 +251,189 @@ func PrintScanStatusTable(tableValues <-chan *ScanStatusTableValues, printingFin
 	printingFinishedChannel <- true
 	close(printingFinishedChannel)
 }
+
+type RowValuesGetter struct {
+	BlackDuckURLs chan *BlackDuckURLRowGetter
+	// UpgradedImages chan UpgradedImageRowGetter
+}
+
+type BlackDuckURLRowGetter struct {
+	RowID        string
+	BlackDuckURL string
+}
+
+type UpgradedImageRowGetter struct {
+	RowID string
+	// UpgradedImage string
+}
+
+type RowData struct {
+	ImageName    string
+	BlackDuckURL string
+	// UpgradedImage string
+	CloseChan chan bool
+}
+
+func PrintScanStatusTableChan(rowValuesGetter *RowValuesGetter, rowIDs []string, printingFinishedChannel chan<- bool) {
+	log.Tracef("inside table printer")
+	t := table.NewWriter()
+	// t.SetOutputMirror(os.Stdout)
+	// t.SetAutoIndex(true)
+	t.AppendHeader(table.Row{"Image Name", "BlackDuck URL"})
+
+	// process output structs concurrently
+	log.Tracef("waiting for values over channel")
+
+	// Initialize the Master Table - where rowID = imageName
+	allRows := make(map[string]*RowData)
+	for _, rowID := range rowIDs {
+		allRows[rowID] = &RowData{
+			ImageName:    rowID,
+			BlackDuckURL: "",
+			CloseChan:    make(chan bool, 0),
+			// UpgradedImage: "",
+		}
+	}
+
+	// Spin off a bunch of routines to get data and populate the Master Table
+
+	go func(allRows map[string]*RowData) {
+		log.Tracef("before the for loop")
+		// BlackDuckURL objects - TODO routine
+		for {
+			log.Tracef("inside the for loop")
+			select {
+			case val := <-rowValuesGetter.BlackDuckURLs:
+				log.Tracef("inside select")
+				log.Tracef("waiting for blackduckurl")
+				allRows[val.RowID].BlackDuckURL = val.BlackDuckURL
+				// if all rows are complete, close this row chan
+				// if len(allRows[val.RowID].UpgradedImage) != 0 {
+				log.Tracef("close chan value before: %b", allRows[val.RowID].CloseChan)
+				allRows[val.RowID].CloseChan <- true
+				log.Tracef("close chan set to: %b", allRows[val.RowID].CloseChan)
+				return
+				// close(allRows[val.RowID].CloseChan)
+				// }
+			}
+		}
+	}(allRows)
+
+	// go func(allRows map[string]*RowData) {
+	// 	// UpgradedImage objects - TODO routine
+	// 	for val := range rowValuesGetter.UpgradedImages {
+	// 		allRows[val.RowID].UpgradedImage = val.UpgradedImage
+	// 		// if all rows are complete, close this row chan
+	// 		if len(allRows[val.RowID].BlackDuckURL) != 0 {
+	// 			allRows[val.RowID].CloseChan <- true
+	// 			close(allRows[val.RowID].CloseChan)
+	// 		}
+	// 	}
+	// }(allRows)
+
+	// var g run.Group
+	for rowID, rowData := range allRows {
+		rowID := rowID
+		rowData := rowData
+		log.Tracef("inside appending rows")
+		log.Tracef("waiting for rowID: %s, rowData: %s", rowID, rowData)
+
+		// g.Add(func() error {
+		// <-rowData.CloseChan
+
+		log.Tracef("row has been processed completely, so we can render it")
+		t.AppendRow([]interface{}{
+			fmt.Sprintf("%s", rowData.ImageName),
+			fmt.Sprintf("%s", rowData.BlackDuckURL),
+			// fmt.Sprintf("%s", rowData.UpgradedImage),
+		})
+		fmt.Printf("Intermediate Table: \n%s\n\n", t.Render())
+		// 	return nil
+		// }, func(error) {
+		//
+		// })
+	}
+
+	err := g.Run()
+	if err != nil {
+		util.DoOrDie(err)
+	}
+
+	// a way to see if the entire table is done.
+	log.Tracef("rendering the table")
+	fmt.Printf("\n%s\n\n", t.Render())
+	printingFinishedChannel <- true
+	close(printingFinishedChannel)
+}
+
+// func PrintScanStatusProgress(tableValues ColChanStruct, printingFinishedChannel chan<- bool, numOfImages int64, autoStop bool) {
+// 	fmt.Printf("Tracking Progress of %d trackers ...\n\n", numOfImages)
+//
+// 	pw := progress.NewWriter()
+// 	pw.SetAutoStop(autoStop)
+// 	pw.SetTrackerLength(25)
+// 	pw.ShowOverallTracker(true)
+// 	pw.ShowTime(true)
+// 	pw.ShowTracker(true)
+// 	pw.ShowValue(true)
+// 	pw.SetMessageWidth(24)
+// 	// pw.SetNumTrackersExpected()
+// 	pw.SetSortBy(progress.SortByPercentDsc)
+// 	pw.SetStyle(progress.StyleDefault)
+// 	pw.SetTrackerPosition(progress.PositionRight)
+// 	pw.SetUpdateFrequency(time.Millisecond * 100)
+// 	pw.Style().Colors = progress.StyleColorsExample
+// 	pw.Style().Options.PercentFormat = "%4.1f%%"
+//
+// 	// call Render() in async mode; yes we don't have any trackers at the moment
+// 	go pw.Render()
+//
+// 	// add a bunch of trackers with random parameters to demo most of the
+// 	// features available; do this in async too like a client might do (for ex.
+// 	// when downloading a bunch of files in parallel)
+// 	for idx := int64(1); idx <= numOfImages; idx++ {
+// 		go trackSomething(pw, idx, tableValues)
+//
+// 		// in auto-stop mode, the Render logic terminates the moment it detects
+// 		// zero active trackers; but in a manual-stop mode, it keeps waiting and
+// 		// is a good chance to demo trackers being added dynamically while other
+// 		// trackers are active or done
+// 		if !autoStop {
+// 			time.Sleep(time.Millisecond * 100)
+// 		}
+// 	}
+//
+// 	// wait for one or more trackers to become active (just blind-wait for a
+// 	// second) and then keep watching until Rendering is in progress
+// 	time.Sleep(time.Second)
+// 	for pw.IsRenderInProgress() {
+// 		// for manual-stop mode, stop when there are no more active trackers
+// 		if pw.LengthActive() == 0 {
+// 			pw.Stop()
+// 		}
+// 		time.Sleep(time.Millisecond * 100)
+// 	}
+//
+// 	fmt.Println("\nAll done!")
+// 	printingFinishedChannel <- true
+// 	close(printingFinishedChannel)
+// }
+
+// func trackSomething(pw progress.Writer, idx int64, tableValues ColChanStruct) {
+// 	var message string
+//
+// 	progress.UnitsDefault
+//
+// 	tracker := progress.Tracker{Message: message, Total: total, Units: *units}
+//
+// 	pw.AppendTracker(&tracker)
+//
+// 	c := time.Tick(time.Millisecond * 100)
+// 	for !tracker.IsDone() {
+// 		select {
+// 		case <-c:
+// 			tracker.Increment(incrementPerCycle)
+// 		}
+// 	}
+//
+// }
