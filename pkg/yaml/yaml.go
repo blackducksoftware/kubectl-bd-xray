@@ -7,7 +7,7 @@ import (
 )
 
 // grepping for image in yaml
-func getImageFromYaml(filename string) ([]string, error) {
+func GetImageFromYaml(filename string) ([]string, error) {
 	list := []string{}
 
 	file, err := os.Open(filename)

@@ -47,7 +47,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	go.mongodb.org/mongo-driver v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a // indirect
-	golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6 // indirect
+	golang.org/x/sys v0.0.0-20200828161417-c663848e9a16 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	google.golang.org/genproto v0.0.0-20200828030656-73b5761be4c5 // indirect
 	google.golang.org/grpc v1.31.1 // indirect

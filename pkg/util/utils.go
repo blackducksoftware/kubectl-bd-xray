@@ -241,6 +241,7 @@ func ParseImageRepo(image string) string {
 
 func SanitizeString(name string) string {
 	var output string
+	output = strings.ReplaceAll(name, ".yaml", "")
 	output = strings.ReplaceAll(name, ".", "_")
 	return output
 }
