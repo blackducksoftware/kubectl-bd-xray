@@ -1,0 +1,44 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: bd-xray
+spec:
+  version: {{ .TagName }}
+  platforms:
+    - selector:
+        matchLabels:
+          os: linux
+          arch: amd64
+      {{addURIAndSha "https://github.com/blackducksoftware/kubectl-bd-xray/releases/download/{{ .TagName }}/kubectl-bd-xray_{{ .TagName }}_linux_amd64.tar.gz" .TagName }}
+      files:
+        - from: "bd-xray"
+          to: "."
+        - from: "LICENSE"
+          to: "."
+      bin: "bd-xray"
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: amd64
+      {{addURIAndSha "https://github.com/blackducksoftware/kubectl-bd-xray/releases/download/{{ .TagName }}/kubectl-bd-xray_{{ .TagName }}_darwin_amd64.tar.gz" .TagName }}
+      files:
+        - from: "bd-xray"
+          to: "."
+        - from: "LICENSE"
+          to: "."
+      bin: "bd-xray"
+    - selector:
+        matchLabels:
+          os: windows
+          arch: amd64
+      {{addURIAndSha "https://github.com/blackducksoftware/kubectl-bd-xray/releases/download/{{ .TagName }}/kubectl-bd-xray_{{ .TagName }}_windows_amd64.zip" .TagName }}
+      files:
+        - from: "bd-xray.exe"
+          to: "."
+        - from: "LICENSE"
+          to: "."
+      bin: "bd-xray.exe"
+  shortDescription: Run Black Duck Image Scans
+  homepage: https://github.com/blackducksoftware/kubectl-bd-xray
+  description: |
+    This plugin runs Black Duck Image Scans for namespaces, yaml, helm charts and more.

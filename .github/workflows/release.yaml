@@ -1,0 +1,51 @@
+# Sources:
+# https://github.com/replicatedhq/outdated/blob/master/.github/workflows/release.yml
+# https://github.com/goreleaser/goreleaser-action/blob/v1.0.2/.github/workflows/release.yml
+# https://github.com/marketplace/actions/goreleaser-action
+
+name: release
+
+on:
+  push:
+    tags: ["*"]
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      # https://github.com/actions/checkout/releases
+      - uses: actions/checkout@v2
+      # https://github.com/goreleaser/goreleaser-action/releases
+      - name: Create a Release using GoReleaser
+        uses: goreleaser/goreleaser-action@v2.1.1
+        with:
+          version: latest
+          args: release --rm-dist --config deploy/.goreleaser.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # https://github.com/rajatjindal/krew-release-bot/releases
+      # https://github.com/rajatjindal/kubectl-evict-pod/blob/v0.0.9/.krew.yaml
+      # https://github.com/corneliusweig/ketall/blob/v1.3.2/hack/get-all.yaml
+      # https://github.com/corneliusweig/ketall/blob/v1.3.2/.github/workflows/ci.yml#L84
+#      - name: Update new version in krew-index
+#        uses: rajatjindal/krew-release-bot@v0.0.38
+#        with:
+#          krew_template_file: deploy/krew/df-pv.yaml
+
+#      -
+#        # https://github.com/actions/setup-go/releases
+#        name: Set up Go
+#        uses: actions/setup-go@v1
+#      -
+#        # https://github.com/goreleaser/goreleaser-action/releases
+#        name: Run GoReleaser
+#        uses: goreleaser/goreleaser-action@v1
+#        with:
+#          # https://github.com/goreleaser/goreleaser/releases
+#          version: latest
+#          args: release --rm-dist
+#          # https://goreleaser.com/customization/#Signing
+#          key: ${{ secrets.YOUR_PRIVATE_KEY }}
+#          signs:
+#            - artifacts: checksum
+#              args: ["--batch", "-u", "<key id, fingerprint, email, ...>", "--output", "${signature}", "--detach-sign", "${artifact}"]

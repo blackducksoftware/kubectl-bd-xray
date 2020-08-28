@@ -40,11 +40,8 @@ require (
 	k8s.io/utils v0.0.0-20200821003339-5e75c0163111 // indirect
 )
 
-// this repo's dependency is tied to the dependency of helm, mainly for go-autorest
-// best place to look is here: https://github.com/helm/helm/blob/v3.3.0/go.mod
 replace (
 	k8s.io/api => k8s.io/api v0.19.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.0
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.19.0
 	k8s.io/client-go => k8s.io/client-go v0.19.0
 )
