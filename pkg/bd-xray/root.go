@@ -43,6 +43,7 @@ func SetupRootCommand() *cobra.Command {
 	rootCmd.AddCommand(SetupImageScanCommand())
 	rootCmd.AddCommand(SetupNamespaceScanCommand())
 	rootCmd.AddCommand(SetupYamlScanCommand())
+	rootCmd.AddCommand(SetupHelmScanCommand())
 
 	return rootCmd
 }
