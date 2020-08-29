@@ -206,7 +206,7 @@ func (c *Client) DownloadDetectIfNotExists() error {
 
 func (c *Client) RunImageScan(fullImageName, projectName, imageName, imageTag, outputDirName, userSpecifiedDetectFlags string) error {
 	var err error
-	log.Infof("scanning: %s", fullImageName)
+	log.Infof("scanning: '%s'", fullImageName)
 
 	// a unique string, but something that's human readable, i.e.: NAME_TAG
 	uniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s", imageName, imageTag))
@@ -275,7 +275,7 @@ func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
 func (c *Client) SetupPersistentDockerInspectorServices() error {
 	var err error
 	// first setup docker-inspector
-	succeeded := util.RunBash("runDetectAgainstDockerServices", RunDetectAgainstDockerServicesBashScript)
+	succeeded := util.RunBash("set up persistent docker inspector services for concurrent scanning", RunDetectAgainstDockerServicesBashScript)
 	if !succeeded {
 		return errors.Errorf("error running the runDetectAgainstDockerServices script directly from golang")
 	}

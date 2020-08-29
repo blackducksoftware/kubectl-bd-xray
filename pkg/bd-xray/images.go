@@ -118,7 +118,7 @@ func BlockOnDoneChan(doneChan chan bool) {
 	log.Tracef("blocking on done channel")
 	select {
 	case <-doneChan:
-		log.Infof("All done!")
+		log.Debugf("All image scans completed!")
 	}
 }
 
@@ -129,7 +129,6 @@ func RunMultipleImageScansConcurrently(ctx context.Context, cancellationFunc con
 
 	for _, image := range imageList {
 		image := image
-		log.Infof("Scanning image: %s", image)
 		scanStatusRow := &ScanStatusRow{}
 		goRoutineGroup.Add(func() error {
 			return RunImageScanCommand(ctx, detectClient, image, detectPassThroughFlagsMap, scanStatusRow, scanStatusRowChan, projectName)
@@ -186,12 +185,12 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	}
 
 	// parsing output infos
-	log.Infof("finding scan status file from uniqueOutputDirName: %s", uniqueOutputDirName)
+	log.Tracef("finding scan status file from uniqueOutputDirName: %s", uniqueOutputDirName)
 	statusFilePath, err := detect.FindScanStatusFile(uniqueOutputDirName)
 	if err != nil {
 		return err
 	}
-	log.Infof("statusFilePath is known to be: %s", statusFilePath)
+	log.Tracef("statusFilePath: %s", statusFilePath)
 	statusJSON, err := detect.ParseStatusJSONFile(statusFilePath)
 	if err != nil {
 		return err
@@ -203,7 +202,7 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 		return nil
 	}
 	location := locations[0]
-	log.Infof("location in Black Duck: %s", location)
+	log.Tracef("BlackDuckURL: %s", location)
 
 	// fill in all the rows
 	scanStatusRow.ImageName = imageName
@@ -225,7 +224,7 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	}
 	scanStatusRow.LatestAvailableImageVersion = latestVersion
 
-	log.Infof("Sending output to Table Printer %s %s %s", scanStatusRow.ImageName, scanStatusRow.BlackDuckURL, scanStatusRow.LatestAvailableImageVersion)
+	log.Tracef("sending to printer: '%s' '%s' '%s'", scanStatusRow.ImageName, scanStatusRow.BlackDuckURL, scanStatusRow.LatestAvailableImageVersion)
 	scanStatusRowChan <- scanStatusRow
 
 	return err
@@ -256,11 +255,11 @@ func PrintScanStatusTable(scanStatusRowChan <-chan *ScanStatusRow, printingFinis
 			fmt.Sprintf("%s", row.BlackDuckURL),
 			fmt.Sprintf("%s", row.LatestAvailableImageVersion),
 		})
-		fmt.Printf("Intermediate Table: \n%s\n\n", t.Render())
+		log.Tracef("rendering intermediate table")
+		fmt.Printf("\n%s\n\n", t.Render())
 	}
 	// TODO: to be able to render concurrently
-	log.Tracef("rendering the table")
-	fmt.Printf("\n%s\n\n", t.Render())
+	log.Tracef("finished rendering table")
 	printingFinishedChannel <- true
 	close(printingFinishedChannel)
 }

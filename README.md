@@ -3,6 +3,13 @@
 
 This plugin runs Black Duck Image Scans for software composition analysis.  Just point and scan images in any namespace, third-party or your own yaml files, helm charts and more.  It also suggests image upgrades for outdated images.  Check out the [future section here](#future) for exciting coming soon features!
 
+See [demo images here](./examples/)
+
+![Image of bd-xray output table](./examples/demo/bd-xray.png)
+![Image of results in Black Duck UI](./examples/demo/bd-image-version.png)
+
+TODO: put video here
+
 <!-- omit in toc -->
 ## Table of Contents
 

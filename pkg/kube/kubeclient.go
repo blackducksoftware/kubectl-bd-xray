@@ -67,7 +67,7 @@ func (kc *Client) ListPods(ctx context.Context, namespace string) (*corev1.PodLi
 }
 
 func (kc *Client) ListDeployments(ctx context.Context, namespace string) (*appsv1.DeploymentList, error) {
-	log.Infof("listing deployments in namespace: '%s'; equivalent to 'kubectl get deployments -n %s'", namespace, namespace)
+	log.Debugf("listing deployments in namespace: '%s'; equivalent to 'kubectl get deployments -n %s'", namespace, namespace)
 	deploymentList, err := kc.Clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
 	return deploymentList, errors.Wrapf(err, "could not get a list of deployments in namespace: '%s'", namespace)
 }

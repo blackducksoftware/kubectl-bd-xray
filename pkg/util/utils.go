@@ -78,17 +78,17 @@ func RunCommand(cmd *exec.Cmd) (string, error) {
 	if 0 == len(currDirectory) {
 		currDirectory, _ = os.Executable()
 	}
-	log.Infof("started command: '%s' in directory: '%s'", cmd.String(), currDirectory)
+	log.Debugf("executing subcommand: '%s' from parent command directory: '%s'\n\n", cmd.String(), currDirectory)
 	go func() {
 	ForLoop:
 		for {
-			log.Infof("waiting for command '%s' ...", cmd.String())
+			log.Debugf("waiting for command '%s' ...\n\n", cmd.String())
 			select {
 			case <-stop:
 				break ForLoop
 			default:
 			}
-			time.Sleep(5 * time.Second)
+			time.Sleep(30 * time.Second)
 		}
 	}()
 	cmdOutput, err := cmd.CombinedOutput()
@@ -252,7 +252,7 @@ var (
 
 func FinishRunning(stepName string, cmd *exec.Cmd) (bool, string, string) {
 	// TODO
-	verbose := true
+	verbose := false
 
 	log.Printf("Running: %v", stepName)
 	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
@@ -290,13 +290,14 @@ func FinishRunning(stepName string, cmd *exec.Cmd) (bool, string, string) {
 
 // Runs the provided bash without wrapping it in any kubernetes-specific gunk.
 func RunRawBashWithOutputs(stepName, bash string) (bool, string, string) {
-	// TODO:
-	traceBash := true
-
 	cmd := exec.Command("bash", "-s")
-	if traceBash {
-		cmd.Args = append(cmd.Args, "-x")
-	}
+
+	// TODO:
+	// traceBash := true
+	// if traceBash {
+	// 	cmd.Args = append(cmd.Args, "-x")
+	// }
+
 	cmd.Stdin = strings.NewReader(bash)
 	return FinishRunning(stepName, cmd)
 }
