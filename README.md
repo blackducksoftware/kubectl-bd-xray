@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # kubectl-bd-xray: Black Duck X-Ray
 
-This plugin runs Black Duck Image Scans for software composition analysis.  Just point and scan images in any namespace, third-party or your own yaml files, helm charts and more.  It also suggests image upgrades for outdated images.  Check out the [future section here](#future) for exciting coming soon features!
+This plugin runs Black Duck image scans in order to allow developers/operators to scan already deployed images as well as about to be deployed images for open source security and license compliance.  Just point and scan images in any namespace, third-party or your own yaml files, and helm charts.  **It also suggests image upgrades for outdated images**.  Check out the [future section here](#future) for exciting coming soon features, including base image remediation, upgrade suggestions for outdated helm charts and more!
 
 See [demo images here](./examples/demo/)
 
