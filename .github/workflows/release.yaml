@@ -27,10 +27,10 @@ jobs:
       # https://github.com/rajatjindal/kubectl-evict-pod/blob/v0.0.9/.krew.yaml
       # https://github.com/corneliusweig/ketall/blob/v1.3.2/hack/get-all.yaml
       # https://github.com/corneliusweig/ketall/blob/v1.3.2/.github/workflows/ci.yml#L84
-     - name: Update new version in krew-index
-       uses: rajatjindal/krew-release-bot@v0.0.38
-       with:
-         krew_template_file: .krew.yaml
+      - name: Update new version in krew-index
+        uses: rajatjindal/krew-release-bot@v0.0.38
+        with:
+          krew_template_file: .krew.yaml
 
 #      -
 #        # https://github.com/actions/setup-go/releases
