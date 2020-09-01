@@ -18,9 +18,9 @@ builds:
       - CGO_ENABLED=0
     main: cmd/bd-xray/main.go
     ldflags: -s -w
-      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/version.version={{.Version}}
-      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/version.gitSHA={{.Commit}}
-      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/version.buildTime={{.Date}}
+      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray.semver={{ .Version }}
+      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray.commit={{ .Commit }}
+      -X github.com/blackducksoftware/kubectl-bd-xray/pkg/bd-xray.date={{ .Date }}
       -extldflags "-static"
     flags: -tags netgo -installsuffix netgo
     binary: bd-xray
