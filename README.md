@@ -14,13 +14,13 @@ TODO: put video here
 ## Table of Contents
 
 - [Installation](#installation)
+  - [From Krew](#from-krew)
   - [From source](#from-source)
     - [Build](#build)
     - [Run](#run)
     - [How to build and use as kubectl plugin](#how-to-build-and-use-as-kubectl-plugin)
   - [From Release Binary](#from-release-binary)
     - [macOs](#macos)
-  - [From Krew](#from-krew)
 - [Usage](#usage)
   - [`bd-xray namespace`: scan all images in a namespace](#bd-xray-namespace-scan-all-images-in-a-namespace)
   - [`bd-xray images`: scan any set of images](#bd-xray-images-scan-any-set-of-images)
@@ -32,9 +32,18 @@ TODO: put video here
     - [Push](#push)
     - [Deleting tags](#deleting-tags)
   - [Testing Krew release locally](#testing-krew-release-locally)
+    - [Generate final `.krew.yaml` from templated `.krew.yaml` here using `krew-release-bot`](#generate-final-krewyaml-from-templated-krewyaml-here-using-krew-release-bot)
 - [Future](#future)
 
 ## Installation
+
+### From Krew
+
+```bash
+curl https://krew.sh/bd-xray | bash
+# . ~/.bashrc   # run if you use bash shell
+# . ~/.zshrc    # run if you use zsh shell
+```
 
 ### From source
 
@@ -88,16 +97,6 @@ mv $download_path "/TODO-somewhere-in-your-path/kubectl-bd_xray"
 kubectl plugin list
 
 kubectl bd-xray --help
-```
-
-### From Krew
-
-TODO: Pending
-
-```bash
-curl https://krew.sh/bd-xray | bash
-# . ~/.bashrc   # run if you use bash shell
-# . ~/.zshrc    # run if you use zsh shell
 ```
 
 ## Usage
@@ -176,7 +175,13 @@ git tag -d v0.1.0
 
 ### Testing Krew release locally
 
-TODO: come back to this, since currently `./deploy/krew/bd-xray.yaml` is templated for automated releases.
+#### Generate final `.krew.yaml` from templated `.krew.yaml` here using `krew-release-bot`
+
+```bash
+# NOTE: you have to use a tag that is already released, in order for krew-release-bot to get the SHA.
+TAG_NAME=v0.1.1
+docker run -v "$(pwd)/.krew.yaml:/tmp/template-file.yaml" rajatjindal/krew-release-bot:v0.0.38 krew-release-bot template --tag $TAG_NAME --template-file /tmp/template-file.yaml
+```
 
 (For developers) To provide a custom plugin manifest, use the --manifest or
   --manifest-url arguments. Similarly, instead of downloading files from a URL,
@@ -184,8 +189,8 @@ TODO: come back to this, since currently `./deploy/krew/bd-xray.yaml` is templat
     kubectl krew install --manifest=FILE [--archive=FILE]
 
 ```bash
-# kubectl krew install --manifest="./deploy/krew/bd-xray.yaml"
-# kubectl krew install --manifest="./deploy/krew/bd-xray.yaml" --archive="./dist/kubectl-bd-xray_v0.1.0_darwin_amd64.tar.gz"
+# kubectl krew install --manifest=".krew.yaml"
+# kubectl krew install --manifest=".krew.yaml" --archive="./dist/kubectl-bd-xray_v0.1.0_darwin_amd64.tar.gz"
 ```
 
 ## Future
