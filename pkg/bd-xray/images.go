@@ -13,7 +13,7 @@ import (
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/detect"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/registries"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/remediation"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 const (
@@ -54,7 +54,7 @@ func SetupImageScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, detectPassThroughFlagsMap, commonFlags.DetectProjectName, commonFlags.CleanupPersistentDockerInspectorServices))
+			utils.DoOrDie(RunAndPrintMultipleImageScansConcurrently(ctx, cancel, args, detectPassThroughFlagsMap, commonFlags.DetectProjectName, commonFlags.CleanupPersistentDockerInspectorServices))
 		},
 	}
 
@@ -163,8 +163,8 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 		detectPassThroughFlags += fmt.Sprintf("--%s=%v ", flagName, castFlagVal)
 	}
 
-	imageName := util.ParseImageName(fullImageName)
-	imageTag := util.ParseImageTag(fullImageName)
+	imageName := utils.ParseImageName(fullImageName)
+	imageTag := utils.ParseImageTag(fullImageName)
 	// // needed in order to calculate the sha
 	// err = detectClient.DockerCLIClient.PullDockerImage(fullImageName)
 	// if err != nil {
@@ -175,7 +175,7 @@ func RunImageScanCommand(ctx context.Context, detectClient *detect.Client, fullI
 	// 	return err
 	// }
 	// a unique string, but something that's human readable, i.e.: TIMESTAMP_NAME_TAG_RANDOMSTRING
-	timestampUniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s_%s_%s", time.Now().Format("20060102150405"), imageName, imageTag, util.GenerateRandomString(16)))
+	timestampUniqueSanitizedString := utils.SanitizeString(fmt.Sprintf("%s_%s_%s_%s", time.Now().Format("20060102150405"), imageName, imageTag, utils.GenerateRandomString(16)))
 	uniqueOutputDirName := fmt.Sprintf("%s/%s", detect.DefaultDetectBlackduckDirectory, timestampUniqueSanitizedString)
 	log.Tracef("output dir is: %s", uniqueOutputDirName)
 

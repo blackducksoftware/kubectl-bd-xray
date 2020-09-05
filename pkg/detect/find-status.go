@@ -8,12 +8,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 func FindScanStatusFile(path string) (string, error) {
 	log.Tracef("Searching for status file in %s", path)
-	_, directoryNames, fileNames, err := util.GetFilesAndDirectories(path)
+	_, directoryNames, fileNames, err := utils.GetFilesAndDirectories(path)
 	if err != nil {
 		return "", err
 	}

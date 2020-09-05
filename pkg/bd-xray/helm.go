@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/helm"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/yaml"
 )
 
@@ -29,7 +29,7 @@ func SetupHelmScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunHelmScanCommand(args, ctx, cancel, commonFlags, detectPassThroughFlagsMap))
+			utils.DoOrDie(RunHelmScanCommand(args, ctx, cancel, commonFlags, detectPassThroughFlagsMap))
 		},
 	}
 

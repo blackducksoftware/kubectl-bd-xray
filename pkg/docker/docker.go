@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 type DockerCLIClient struct {
@@ -83,41 +83,41 @@ func (cli *DockerCLIClient) GetImageSha(image string) (string, error) {
 // TODO: use golang client instead of docker
 func (cli *DockerCLIClient) SaveDockerImage(image, filePath string) error {
 	// cli.DockerClient.ImageSave()
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker save -o %s %s", filePath, image))
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("docker save -o %s %s", filePath, image))
 	var err error
-	_, err = util.RunCommand(cmd)
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 
 // TODO: use golang client instead of docker
 func (cli *DockerCLIClient) SaveDockerImageAsTarGz(image, filePath string) error {
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c docker save %s | gzip > %s.tar.gz", image, filePath))
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("sh -c docker save %s | gzip > %s.tar.gz", image, filePath))
 	var err error
-	_, err = util.RunCommand(cmd)
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 
 // TODO: use golang client instead of docker
 func (cli *DockerCLIClient) PullDockerImage(image string) error {
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker pull %s", image))
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("docker pull %s", image))
 	var err error
-	_, err = util.RunCommand(cmd)
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 
 // TODO: use golang client instead of docker
 func (cli *DockerCLIClient) StopContainerByName(containerName string) error {
 	var err error
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker stop %s", containerName))
-	_, err = util.RunCommand(cmd)
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("docker stop %s", containerName))
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 
 // TODO: use golang client instead of docker
 func (cli *DockerCLIClient) DeleteContainerByName(containerName string) error {
 	var err error
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker rm %s", containerName))
-	_, err = util.RunCommand(cmd)
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("docker rm %s", containerName))
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 

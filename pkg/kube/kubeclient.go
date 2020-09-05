@@ -14,7 +14,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth" // required for auth, see: https://github.com/kubernetes/client-go/tree/v0.17.3/plugin/pkg/client/auth
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 type Client struct {
@@ -22,7 +22,7 @@ type Client struct {
 }
 
 func PathToKubeConfig() (string, error) {
-	return path.Join(util.GetHomeDir(), ".kube", "config"), nil
+	return path.Join(utils.GetHomeDir(), ".kube", "config"), nil
 }
 
 func NewDefaultClient() (*Client, error) {

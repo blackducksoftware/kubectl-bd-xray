@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 func InitAndExecute() {
@@ -31,7 +31,7 @@ func SetupRootCommand() *cobra.Command {
 		Long:  `Run a Black Duck scan on an image`,
 		Args:  cobra.MaximumNArgs(0),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return util.SetUpLogger(rootFlags.LogLevel)
+			return utils.SetUpLogger(rootFlags.LogLevel)
 		},
 	}
 

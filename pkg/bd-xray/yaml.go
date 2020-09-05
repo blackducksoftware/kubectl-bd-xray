@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"path/filepath"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/yaml"
 )
 
@@ -29,7 +29,7 @@ func SetupYamlScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunYamlScanCommand(args[0], ctx, cancel, commonFlags, detectPassThroughFlagsMap))
+			utils.DoOrDie(RunYamlScanCommand(args[0], ctx, cancel, commonFlags, detectPassThroughFlagsMap))
 		},
 	}
 
@@ -54,7 +54,7 @@ func RunYamlScanCommand(yamlfile string, ctx context.Context, cancellationFunc c
 	var projectName string
 	var userSuppliedProjectName = commonFlags.DetectProjectName
 	if 0 == len(userSuppliedProjectName) {
-		projectName = util.SanitizeString(filepath.Base(yamlfile))
+		projectName = utils.SanitizeString(filepath.Base(yamlfile))
 	} else {
 		projectName = userSuppliedProjectName
 	}

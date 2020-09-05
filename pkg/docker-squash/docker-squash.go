@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 const DockerSquashPath = "docker-squash"
@@ -20,16 +20,16 @@ func DockerSquash(imageName, outputFilePath string) error {
 	}
 
 	// Squash the image
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("docker-squash %s --output-path %s", imageName, outputFilePath))
-	_, err = util.RunCommand(cmd)
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("docker-squash %s --output-path %s", imageName, outputFilePath))
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 
 // TODO: remove dependency on python
 func PipInstallDockerSquash() error {
-	cmd := util.GetExecCommandFromString(fmt.Sprintf("pip install docker-squash"))
+	cmd := utils.GetExecCommandFromString(fmt.Sprintf("pip install docker-squash"))
 	var err error
-	_, err = util.RunCommand(cmd)
+	_, err = utils.RunCommand(cmd)
 	return err
 }
 

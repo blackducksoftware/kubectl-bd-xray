@@ -1,4 +1,4 @@
-package util
+package utils
 
 import (
 	"bytes"
@@ -43,12 +43,6 @@ func GenerateRandomString(length int) string {
 		b[i] = charset[seededRand.Intn(len(charset))]
 	}
 	return string(b)
-}
-
-// ChmodX executes chmod +x on given filepath
-func ChmodX(filePath string) (string, error) {
-	cmd := GetExecCommandFromString(fmt.Sprintf("chmod +x %s", filePath))
-	return RunCommand(cmd)
 }
 
 func GetExecCommandFromString(fullCmd string) *exec.Cmd {

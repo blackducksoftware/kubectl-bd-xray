@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/kube"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 func SetupNamespaceScanCommand() *cobra.Command {
@@ -28,7 +28,7 @@ func SetupNamespaceScanCommand() *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			util.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, commonFlags, detectPassThroughFlagsMap))
+			utils.DoOrDie(RunNamespaceScanCommand(args[0], ctx, cancel, commonFlags, detectPassThroughFlagsMap))
 		},
 	}
 

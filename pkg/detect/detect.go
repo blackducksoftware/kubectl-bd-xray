@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/blackducksoftware/kubectl-bd-xray/pkg/docker"
-	"github.com/blackducksoftware/kubectl-bd-xray/pkg/util"
+	"github.com/blackducksoftware/kubectl-bd-xray/pkg/utils"
 )
 
 const (
@@ -136,7 +136,7 @@ done
 )
 
 var (
-	DefaultDetectBlackduckDirectory = fmt.Sprintf("%s/blackduck", util.GetHomeDir())
+	DefaultDetectBlackduckDirectory = fmt.Sprintf("%s/blackduck", utils.GetHomeDir())
 	DefaultToolsDirectory           = fmt.Sprintf("%s/tools", DefaultDetectBlackduckDirectory)
 )
 
@@ -164,7 +164,7 @@ func NewClient(detectFilePath, detectURL string) *Client {
 		SetTimeout(180 * time.Second)
 
 	dockerCLIClient, err := docker.NewCliClient()
-	util.DoOrDie(err)
+	utils.DoOrDie(err)
 
 	return &Client{
 		DetectPath:      detectFilePath,
@@ -186,8 +186,7 @@ func (c *Client) DownloadDetect() error {
 	if !resp.IsSuccess() {
 		return errors.Errorf("bad status code to path %s: %d, response %s", c.DetectURL, statusCode, respBody)
 	}
-	_, err = util.ChmodX(c.DetectPath)
-	return err
+	return os.Chmod(c.DetectPath, 0755)
 }
 
 func (c *Client) DownloadDetectIfNotExists() error {
@@ -209,7 +208,7 @@ func (c *Client) RunImageScan(fullImageName, projectName, imageName, imageTag, o
 	log.Infof("scanning: '%s'", fullImageName)
 
 	// a unique string, but something that's human readable, i.e.: NAME_TAG
-	uniqueSanitizedString := util.SanitizeString(fmt.Sprintf("%s_%s", imageName, imageTag))
+	uniqueSanitizedString := utils.SanitizeString(fmt.Sprintf("%s_%s", imageName, imageTag))
 
 	// UNSQUASHED
 	// unsquashedImageTarFilePath := fmt.Sprintf("unsquashed_%s.tar", uniqueSanitizedString)
@@ -238,22 +237,23 @@ func (c *Client) RunImageScan(fullImageName, projectName, imageName, imageTag, o
 	} else {
 		projectVersionName = uniqueSanitizedString
 	}
+	codeLocationName := projectName
 
 	var cmdStr string
-	cmdStr = fmt.Sprintf("%s %s %s %s %s %s", c.DetectPath, defaultGlobalFlags, userSpecifiedDetectFlags, c.GetProjectNameFlag(projectName), c.GetProjectVersionNameFlag(projectVersionName), c.GetPersistentDockerInspectorServicesFlags())
+	cmdStr = fmt.Sprintf("%s %s %s %s %s %s %s", c.DetectPath, defaultGlobalFlags, userSpecifiedDetectFlags, c.GetProjectNameFlag(projectName), c.GetProjectVersionNameFlag(projectVersionName), c.GetCodeLocationNameFlag(codeLocationName), c.GetPersistentDockerInspectorServicesFlags())
 	cmdStr += fmt.Sprintf(" %s", c.GetDockerInspectorAndSignatureOnlyScanFlags(fullImageName))
 	// cmdStr += fmt.Sprintf(" %s", c.GetDockerInspectorScanOnlyFlags(fullImageName))
 	// cmdStr = fmt.Sprintf(" %s", c.GetAllSquashedScanFlags(squashedImageTarFilePath, fullImageName))
-	cmd := util.GetExecCommandFromString(cmdStr)
+	cmd := utils.GetExecCommandFromString(cmdStr)
 
 	// NOTE: by design, we explicitly don't print out the detect output
-	err = util.RunCommandBasedOnLoggingLevel(cmd)
+	err = utils.RunCommandBasedOnLoggingLevel(cmd)
 	return err
 }
 
 // GetDetectDockerImageDefaultScanFlags: this is the default scan that detect invokes (which is just docker-inspector + squashed signature scanner)
 func (c *Client) GetDetectDockerImageDefaultScanFlags(fullImageName string) string {
-	return fmt.Sprintf("--detect.docker.image=%s", fullImageName)
+	return fmt.Sprintf("--detect.docker.image=%s --detect.tools.excluded=DETECTOR,POLARIS", fullImageName)
 }
 
 // GetDockerInspectorAndSignatureOnlyScanFlags: explicitly only run DOCKER,SIGNATURE_SCAN scans for specified image
@@ -267,7 +267,7 @@ func (c *Client) GetDockerInspectorAndSignatureOnlyScanFlags(fullImageName strin
 // https://github.com/blackducksoftware/blackduck-docker-inspector/blob/9.1.1/deployment/docker/runDetectAgainstDockerServices/setup.sh#L111
 // https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/760021042/Docker+Inspector+Properties
 func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
-	return fmt.Sprintf("--detect.docker.path.required=false --detect.docker.passthrough.imageinspector.service.url=http://localhost:9002 --detect.docker.passthrough.imageinspector.service.start=false --detect.docker.passthrough.shared.dir.path.local=%s/blackduck/shared", util.GetHomeDir())
+	return fmt.Sprintf("--detect.docker.path.required=false --detect.docker.passthrough.imageinspector.service.url=http://localhost:9002 --detect.docker.passthrough.imageinspector.service.start=false --detect.docker.passthrough.shared.dir.path.local=%s/blackduck/shared", utils.GetHomeDir())
 }
 
 // SetupPersistentDockerInspectorServices: sets up persistent docker services on host; goes together with GetPersistentDockerInspectorServicesFlags
@@ -275,19 +275,19 @@ func (c *Client) GetPersistentDockerInspectorServicesFlags() string {
 func (c *Client) SetupPersistentDockerInspectorServices() error {
 	var err error
 	// first setup docker-inspector
-	succeeded := util.RunBash("set up persistent docker inspector services for concurrent scanning", RunDetectAgainstDockerServicesBashScript)
+	succeeded := utils.RunBash("set up persistent docker inspector services for concurrent scanning", RunDetectAgainstDockerServicesBashScript)
 	if !succeeded {
 		return errors.Errorf("error running the runDetectAgainstDockerServices script directly from golang")
 	}
-	// cmd := util.GetExecCommandFromString(fmt.Sprintf("sh -c ../../pkg/detect/runDetectAgainstDockerServices.sh"))
-	// err = util.RunCommandBasedOnLoggingLevel(cmd)
+	// cmd := utils.GetExecCommandFromString(fmt.Sprintf("sh -c ../../pkg/detect/runDetectAgainstDockerServices.sh"))
+	// err = utils.RunCommandBasedOnLoggingLevel(cmd)
 	return err
 }
 
 func (c *Client) StopAndCleanupPersistentDockerInspectorServices() error {
 	var err error
 
-	succeeded := util.RunBash("StopAndCleanupPersistentDockerInspectorServices", "docker stop blackduck-imageinspector-ubuntu blackduck-imageinspector-centos blackduck-imageinspector-alpine && docker rm blackduck-imageinspector-ubuntu blackduck-imageinspector-centos blackduck-imageinspector-alpine")
+	succeeded := utils.RunBash("StopAndCleanupPersistentDockerInspectorServices", "docker stop blackduck-imageinspector-ubuntu blackduck-imageinspector-centos blackduck-imageinspector-alpine && docker rm blackduck-imageinspector-ubuntu blackduck-imageinspector-centos blackduck-imageinspector-alpine")
 	if !succeeded {
 		return errors.Errorf("error stopping and removing persistent docker inspector service containers")
 	}
@@ -317,7 +317,6 @@ func (c *Client) GetSignatureScanOnlyFlags(imageTarFilePath string) string {
 
 // GetBinaryScanOnlyFlags binary scanner only
 func (c *Client) GetBinaryScanOnlyFlags(imageTarFilePath string) string {
-	// TODO: not sure if project name is required
 	return fmt.Sprintf("--detect.tools=BINARY_SCAN --detect.binary.scan.file.path=%s", imageTarFilePath)
 }
 
@@ -328,7 +327,6 @@ func (c *Client) GetAllSquashedScanFlags(squashedImageTarFilePath, fullImageName
 
 // GetAllUnsquashedScanFlags [unsquashed] docker-inspector + signature + binary
 func (c *Client) GetAllUnsquashedScanFlags(unsquashedImageTarFilePath string) string {
-	// TODO: not sure if project name is required, since docker-inspector is supposed to auto-fill that
 	return fmt.Sprintf("--detect.tools=DOCKER,SIGNATURE_SCAN,BINARY_SCAN --detect.docker.tar=%s --detect.binary.scan.file.path=%s", unsquashedImageTarFilePath, unsquashedImageTarFilePath)
 }
 
